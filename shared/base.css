@@ -1,0 +1,84 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+:root {
+  --ink: #161616;
+  --paper: #f4f1ea;
+  --lime: #c7ff55;
+  --purple: #aa8cff;
+  --orange: #ff825c;
+  --line: rgba(22, 22, 22, .18);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: "Space Grotesk", sans-serif;
+}
+
+button, a {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.site-header {
+  height: 76px;
+  padding: 0 4vw;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 5;
+}
+
+.brand {
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -.08em;
+}
+
+.brand span {
+  color: #7557da;
+}
+
+.header-label, .header-link, .eyebrow, footer {
+  font: 500 .7rem "DM Mono", monospace;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.header-link {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.eyebrow {
+  margin: 0 0 1.6rem;
+  color: #716e69;
+}
+
+footer {
+  padding: 1.5rem 4vw;
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 700px) {
+  .header-label {
+    display: none;
+  }
+}

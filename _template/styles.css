@@ -1,0 +1,13 @@
+@import url("../../shared/base.css");
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+#scene {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Persönliches Three.js/WebGL Übungs-Boilerplate" />
+    <title>Three.js · Intro Cube</title>
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <header class="site-header">
+      <a class="brand" href="../../index.html">Three<span>.js</span></a>
+      <p class="header-label">01 — Intro Cube</p>
+      <a class="header-link" href="https://threejs.org/docs/" target="_blank" rel="noreferrer">Docs ↗</a>
+    </header>
+
+    <p class="stage-caption">renderer.render(scene, camera)</p>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>

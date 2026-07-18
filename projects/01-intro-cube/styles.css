@@ -1,0 +1,32 @@
+@import url("../../shared/base.css");
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+#scene {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+.site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid rgba(244, 241, 234, .18);
+  color: var(--paper);
+}
+
+.stage-caption {
+  position: fixed;
+  bottom: 1.4rem;
+  right: 1.4rem;
+  margin: 0;
+  color: var(--paper);
+  opacity: .75;
+  font: .7rem "DM Mono", monospace;
+}
