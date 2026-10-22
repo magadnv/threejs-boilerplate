@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Fäden · code.talks 2026</title>
+    <meta name="description" content="Was tut dir hier gut? Ein Wort, ein roter Faden – und alle zusammen ergeben ein Knäuel." />
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.webgpu.js",
+          "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.webgpu.js",
+          "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.tsl.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="page">
+      <header class="hud">
+        <span class="hud__brand">madebymaga</span>
+        <p class="hud__title"><em>Fäden</em> — code.talks 2026</p>
+      </header>
+
+      <div class="stage"><canvas id="scene" aria-label="Ein rotes Knäuel aus allen Fäden"></canvas></div>
+
+      <main class="journey">
+        <section class="step" data-step="wort">
+          <p class="eyebrow"><b>Feel Good</b> · 1 / 2</p>
+          <h1>Was tut dir hier gut?</h1>
+          <form id="form-wort">
+            <input class="field" id="wort" maxlength="24" autocomplete="off" autocapitalize="sentences" enterkeyhint="next" aria-label="Ein Wort" value="Gespräche" />
+            <div class="chips" id="chips"></div>
+            <p class="note" id="note-wort"></p>
+          </form>
+          <div class="actions"><button class="btn" form="form-wort">Weiter</button></div>
+        </section>
+
+        <section class="step" data-step="name">
+          <p class="eyebrow"><b>Feel Good</b> · 2 / 2</p>
+          <h1>Und wer spinnt mit?</h1>
+          <form id="form-name">
+            <input class="field" id="name" maxlength="20" autocomplete="given-name" enterkeyhint="send" placeholder="Vorname" aria-label="Vorname" />
+            <p class="note" id="note-name">Freiwillig. Steht klein neben deinem Wort.</p>
+          </form>
+          <div class="actions">
+            <button class="btn" form="form-name" id="spinnen">Faden spinnen</button>
+            <button class="link" id="ohne">ohne Namen</button>
+          </div>
+        </section>
+
+        <section class="step" data-step="fertig">
+          <p class="eyebrow">N° <b id="nr">—</b></p>
+          <h1>Dein Faden hält jetzt mit.</h1>
+          <p class="sig">Der schwarze ist deiner, <span id="anzahl">—</span> rote halten ihn.</p>
+          <div class="actions">
+            <button class="btn" id="teilen">Faden teilen</button>
+          </div>
+          <p class="note"><strong>Maga</strong>, Feel Good Manager. Sprich mich an, ich bin der mit dem roten Faden.</p>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fäden · Wand</title>
+    <meta name="description" content="Alle Fäden der code.talks 2026 als ein Knäuel, live." />
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.webgpu.js",
+          "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.webgpu.js",
+          "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.tsl.js"
+        }
+      }
+    </script>
+  </head>
+  <body class="wall">
+    <canvas id="scene" aria-label="Ein rotes Knäuel aus allen Fäden"></canvas>
+
+    <header class="hud">
+      <span class="hud__brand">madebymaga</span>
+      <p class="hud__title"><em>Fäden</em> — code.talks 2026 · <span id="anzahl">—</span> Fäden</p>
+    </header>
+
+    <footer class="wall__foot">
+      <p class="quote" aria-live="polite">
+        <span class="quote__wort" id="wort">—</span>
+        <span class="quote__wer" id="wer"></span>
+      </p>
+      <div class="join">
+        <p><strong>Was tut dir hier gut?</strong>Scannen und mitspinnen.</p>
+        <div class="qr" id="qr"></div>
+      </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+    <script type="module" src="wand.js"></script>
+  </body>
+</html>
