@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tinte · Studie N° 02</title>
+    <meta name="description" content="Eine Million Tintenpartikel schreiben einen Satz. WebGPU-Compute mit Three.js und TSL." />
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.webgpu.js",
+          "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.webgpu.js",
+          "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.tsl.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <header class="hud hud--top">
+      <a class="hud__brand" href="../../">madebymaga</a>
+      <p class="hud__title"><em>Tinte</em> — Studie N° 02</p>
+    </header>
+
+    <footer class="hud hud--bottom">
+      <p class="hud__stats">
+        <span id="count">—</span> Partikel · <span id="backend">—</span> · <span id="fps" class="hud__fps">— fps</span>
+      </p>
+      <p class="hud__hint">Ziehen — die Tinte verweht.<br />Klicken — der nächste Satz.</p>
+    </footer>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
