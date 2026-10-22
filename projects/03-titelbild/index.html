@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Titelbild · Studie N° 03</title>
+    <meta name="description" content="LinkedIn-Titelbild aus einer Million Tintenpartikeln. WebGPU-Compute mit Three.js und TSL, Export als PNG." />
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.webgpu.js",
+          "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.webgpu.js",
+          "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.tsl.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header class="bar">
+      <a class="bar__brand" href="../../">madebymaga</a>
+      <p class="bar__title"><em>Titelbild</em> — Studie N° 03</p>
+    </header>
+
+    <main class="stage">
+      <div class="banner" id="banner">
+        <canvas id="scene"></canvas>
+        <p class="banner__label banner__label--brand">madebymaga</p>
+        <p class="banner__label banner__label--note">Tinte · eine Million Partikel</p>
+        <div class="banner__avatar" aria-hidden="true"></div>
+      </div>
+    </main>
+
+    <footer class="bar bar--bottom">
+      <p class="bar__hint">Ziehen — die Tinte verweht und glüht rot. 1584 × 396, Export in doppelter Größe.</p>
+      <div class="bar__actions">
+        <label class="toggle"><input type="checkbox" id="avatar" checked /> Profilbild zeigen</label>
+        <button id="gust" type="button">Windstoß</button>
+        <button id="save" type="button" class="primary">PNG speichern</button>
+      </div>
+    </footer>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
