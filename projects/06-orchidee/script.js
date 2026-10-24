@@ -3,6 +3,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { createSound } from "./sound.js";
 
 // Weiße Orchidee — Hintergrund fürs gemeinsame Frühstück.
 // Eine Phalaenopsis-Rispe öffnet sich im Morgenlicht, Pollen aus Licht
@@ -21,6 +22,8 @@ const canvas = document.querySelector("#scene");
 const titleEl = document.querySelector("#title");
 const lineEl = document.querySelector("#line");
 const hintEl = document.querySelector("#hint");
+const soundEl = document.querySelector("#sound");
+const sound = createSound();
 
 const scene = new THREE.Scene();
 
@@ -464,6 +467,7 @@ async function story() {
   let next = 0;
   for (;;) {
     heartTarget = 1;
+    sound.chime();
     await sleep(1800);
     reveal(titleEl, "Danke");
     await sleep(1700);
@@ -495,10 +499,35 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") keepAwake();
 });
 
+function toggleSound() {
+  if (sound.on) sound.stop();
+  else sound.start();
+  soundEl.classList.toggle("muted", !sound.on);
+  soundEl.setAttribute("aria-pressed", sound.on);
+}
+
+let soundStarted = false;
 window.addEventListener("click", () => {
   keepAwake();
-  if (document.fullscreenElement) document.exitFullscreen?.();
-  else document.documentElement.requestFullscreen?.();
+  // Browser erlauben Ton erst nach einem Klick, also beim ersten Klick an
+  if (!soundStarted) {
+    soundStarted = true;
+    if (!sound.on) toggleSound();
+  }
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  else document.documentElement.requestFullscreen?.().catch(() => {});
+});
+
+soundEl.addEventListener("click", (e) => {
+  e.stopPropagation();
+  soundStarted = true;
+  toggleSound();
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "m" || e.key === "M") {
+    soundStarted = true;
+    toggleSound();
+  }
 });
 setTimeout(() => hintEl.classList.add("gone"), 4500);
 
