@@ -1,0 +1,113 @@
+:root {
+  --pink: #ff3d9a;
+  --sun: #ffb35c;
+  --cyan: #5ef2ff;
+  --night: #12061f;
+  --mono: "DM Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--night);
+  color: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+
+#scene {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  padding: clamp(16px, 3vw, 40px);
+  display: flex;
+  flex-direction: column;
+  font: 500 .72rem/1.5 var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.hud-top, .hud-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.hud-bottom { align-items: flex-end; margin-top: auto; }
+
+.place { margin: 0; }
+.place span { opacity: .55; }
+
+/* Fahndungssterne */
+.wanted { display: flex; gap: 6px; }
+.wanted i {
+  width: 22px;
+  height: 22px;
+  background: rgba(255, 255, 255, .18);
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  transition: background .25s;
+}
+.wanted i.on { background: #fff; filter: drop-shadow(0 0 6px #fff); }
+.wanted.blink i.on { animation: blink .5s steps(1) infinite; }
+@keyframes blink { 50% { background: rgba(255, 255, 255, .25); } }
+
+.title {
+  margin: auto 0 0;
+  font: italic 900 clamp(4.5rem, 17vw, 15rem)/.8 "Kanit", sans-serif;
+  letter-spacing: -.02em;
+  text-transform: uppercase;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #fff3c4 0%, var(--sun) 35%, var(--pink) 75%, #b13cff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 30px rgba(255, 61, 154, .45));
+  opacity: 0;
+  transform: translateY(40px) skewX(-6deg);
+  animation: rise 1.6s .5s cubic-bezier(.2, .8, .2, 1) forwards;
+}
+.title span:last-child { padding-left: .5em; }
+
+.countdown {
+  margin: 1.2em 0 0;
+  font-size: clamp(.8rem, 1.4vw, 1rem);
+  opacity: 0;
+  animation: rise 1.2s 1.2s ease forwards;
+}
+.countdown b { color: var(--cyan); font-weight: 500; }
+
+@keyframes rise { to { opacity: 1; transform: none; } }
+
+.hint { margin: 0; opacity: .6; }
+
+.speed { margin: 0; text-align: right; }
+.speed b {
+  display: block;
+  font: italic 900 clamp(2.6rem, 6vw, 4.5rem)/1 "Kanit", sans-serif;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.speed span { opacity: .6; }
+
+.fine {
+  margin: 1.2em 0 0;
+  opacity: .35;
+  font-size: .6rem;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .hint { display: none; }
+  .wanted i { width: 16px; height: 16px; }
+}

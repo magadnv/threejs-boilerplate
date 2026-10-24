@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Nachtfahrt durch Vice City zum Sonnenuntergang – Three.js-Fan-Studie bis zum 19.11.2026" />
+    <title>Three.js · Vice</title>
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:ital,wght@1,800;1,900&family=DM+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="styles.css?v=7" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div class="hud">
+      <div class="hud-top">
+        <p class="place">Leonida — Vice City<br /><span>25°46′N 80°11′W · Ocean Drive</span></p>
+        <div class="wanted" aria-label="Fahndungslevel">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+      </div>
+
+      <h1 class="title"><span>Vice</span><span>City</span></h1>
+      <p class="countdown" id="countdown"></p>
+
+      <div class="hud-bottom">
+        <p class="hint">Halten = Vollgas</p>
+        <p class="speed"><b id="speed">0</b><span>mph</span></p>
+      </div>
+      <p class="fine">Fan-Studie · nicht verbunden mit Rockstar Games</p>
+    </div>
+
+    <script type="module" src="script.js?v=7"></script>
+  </body>
+</html>
