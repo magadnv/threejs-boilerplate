@@ -1,0 +1,118 @@
+@import url("../../shared/base.css");
+
+:root {
+  --rot: #cf1830;
+  --weiss: #f7f3ee;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #171b26;
+  color: var(--weiss);
+}
+
+#scene {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+.kopf, .zaehler, .gedicht, .fuss {
+  position: fixed;
+  pointer-events: none;
+}
+
+.kopf {
+  top: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 24px 4vw;
+  font-family: "DM Mono", monospace;
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: .75;
+}
+
+.zaehler {
+  top: 64px; left: 4vw;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.zahl {
+  font-family: "Instrument Serif", serif;
+  font-size: clamp(56px, 9vw, 128px);
+  line-height: .9;
+  font-variant-numeric: tabular-nums;
+}
+
+.label {
+  font-family: "DM Mono", monospace;
+  font-size: 12px;
+  letter-spacing: .08em;
+  opacity: .7;
+}
+
+.gedicht {
+  margin: 0;
+  right: 4vw;
+  top: 38vh;
+  text-align: right;
+  font-family: "Instrument Serif", serif;
+  font-size: clamp(30px, 4.4vw, 64px);
+  line-height: 1.05;
+  text-shadow: 0 2px 24px rgba(10, 12, 20, .7), 0 0 60px rgba(10, 12, 20, .5);
+}
+
+.gedicht p {
+  margin: 0;
+  opacity: 0;
+  transform: translateY(14px);
+  filter: blur(6px);
+  transition: opacity 1.6s ease, transform 1.6s ease, filter 1.6s ease;
+}
+
+.gedicht cite {
+  display: block;
+  margin-top: 18px;
+  font-family: "DM Mono", monospace;
+  font-style: normal;
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 1.6s ease;
+}
+
+.gedicht .an { opacity: 1; transform: none; filter: none; }
+.gedicht cite.an { opacity: .75; }
+.rot { color: var(--rot); }
+
+.fuss {
+  left: 4vw; right: 4vw; bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 24px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.fuss p { margin: 0; max-width: 520px; opacity: .8; text-transform: none; letter-spacing: 0; font-family: "Space Grotesk", sans-serif; }
+.fuss .hinweis {
+  font-family: "DM Mono", monospace;
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: .55;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .gedicht { top: auto; bottom: 150px; }
+  .fuss .hinweis { display: none; }
+}

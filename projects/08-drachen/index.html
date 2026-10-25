@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Three.js · Drachen über Gaza</title>
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <header class="kopf">
+      <span>Al-Waha Beach, Gaza</span>
+      <span>28. Juli 2011</span>
+    </header>
+
+    <div class="zaehler">
+      <span class="zahl" id="zahl">0</span>
+      <span class="label">Drachen gleichzeitig in der Luft</span>
+    </div>
+
+    <blockquote class="gedicht" id="gedicht">
+      <p><em>If I must die,</em></p>
+      <p>let it be a hope,</p>
+      <p>let it be a <em class="rot">tale.</em></p>
+      <cite>Refaat Alareer, 1979–2023</cite>
+    </blockquote>
+
+    <div class="fuss">
+      <p>Im Sommer 2011 ließen Kinder in Gaza 12.350 Drachen zugleich steigen, bis heute Weltrekord.
+        Alareers Gedicht bittet uns, einen Drachen zu bauen, damit ein Kind ihn fliegen sieht.
+        Der rote ist seiner.</p>
+      <p class="hinweis">Maus bewegen = Wind</p>
+    </div>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
