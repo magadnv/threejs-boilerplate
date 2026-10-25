@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Three.js · Naza</title>
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,300;125,800&display=swap" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div class="balken oben">
+      <span>Yuval Abraham · Rachel Szor</span>
+      <span>83. Filmfestspiele Venedig · Wettbewerb</span>
+    </div>
+
+    <div class="titel">
+      <h1>NAZA</h1>
+      <p>24 Stimmen. Verfremdet.</p>
+    </div>
+
+    <div class="balken unten">
+      <span class="stimme">Stimme <b id="nr">01</b> / 24</span>
+      <svg class="welle" viewBox="0 0 600 40" preserveAspectRatio="none"><path id="welle" /></svg>
+      <span>Ab 01.10.2026 im Kino</span>
+    </div>
+
+    <p class="studie">Freie Studie · madebymaga · Klick = nächste Stimme</p>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>

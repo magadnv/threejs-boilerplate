@@ -1,0 +1,105 @@
+@import url("../../shared/base.css");
+
+:root {
+  --beere: #b0447e;
+  --weiss: #f2eef0;
+  --balken: 9vh;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: var(--weiss);
+  font-family: "Archivo", sans-serif;
+  font-stretch: 125%;
+  cursor: crosshair;
+}
+
+#scene {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+.balken, .titel, .studie {
+  position: fixed;
+  pointer-events: none;
+}
+
+.balken {
+  left: 0; right: 0;
+  height: var(--balken);
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 0 4vw;
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+}
+.oben { top: 0; }
+.unten { bottom: 0; }
+
+.stimme b { color: var(--beere); font-weight: 800; }
+
+.welle {
+  flex: 1;
+  max-width: 520px;
+  height: 28px;
+}
+.welle path {
+  fill: none;
+  stroke: var(--weiss);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  opacity: .8;
+}
+
+.titel {
+  left: 4vw;
+  top: calc(var(--balken) + 7vh);
+  opacity: 0;
+  animation: auf 2.4s ease .6s forwards;
+}
+
+.titel h1 {
+  margin: 0;
+  font-size: clamp(64px, 13vw, 210px);
+  font-weight: 800;
+  letter-spacing: .14em;
+  line-height: .9;
+}
+
+.titel p {
+  margin: 18px 0 0;
+  font-size: clamp(12px, 1.1vw, 15px);
+  font-weight: 300;
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  opacity: .85;
+}
+
+.studie {
+  right: 4vw;
+  bottom: calc(var(--balken) + 14px);
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  opacity: .45;
+}
+
+@keyframes auf {
+  from { opacity: 0; filter: blur(14px); letter-spacing: .3em; }
+  to { opacity: 1; filter: none; }
+}
+
+@media (max-width: 640px) {
+  .balken { font-size: 9px; gap: 12px; }
+  .oben span:last-child, .welle { display: none; }
+}
