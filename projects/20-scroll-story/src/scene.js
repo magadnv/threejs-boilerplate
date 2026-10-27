@@ -25,6 +25,9 @@ import {
   vec3,
   time,
   rotate,
+  fog,
+  densityFogFactor,
+  reference,
   color,
   distance,
   cameraPosition,
@@ -55,6 +58,7 @@ export const U = {
   burst: uniform(0), // … und explodiert, federt zurück
   gold: uniform(0), // Easter Egg 3: Gold-Edition
   tilt: uniform(new THREE.Vector2()), // Easter Egg 5: Kuzushi – Siegel kippt um die Mitte
+  paper: uniform(0), // Easter Egg 6: Paper Edition – Tinte auf Papier statt Licht im Dunkeln
 };
 
 // Wie weit der Zeitversatz zwischen den Splittern reicht (0 = alle gleichzeitig)
@@ -265,7 +269,14 @@ export async function createWorld(scene, path, { count, reduced }) {
 
   const gold = mix(color(new THREE.Color("#9c6a1c")), color(new THREE.Color("#ffe2a0")), aRnd.x);
   const base = mix(mix(U.colorA, U.colorB, aRnd.x), gold, U.gold);
-  material.colorNode = base;
+  // Paper Edition: unterwegs schwarze Tinte, als Siegel rot – rot auf weiß
+  const inkBlack = mix(color(new THREE.Color("#111114")), color(new THREE.Color("#3a3a40")), aRnd.x);
+  const inkRed = color(new THREE.Color("#cf1830"));
+  const ink = mix(inkBlack, inkRed.mul(0.35), e2);
+  material.colorNode = mix(base, ink, U.paper);
+  // Tinte glänzt nicht wie Metall
+  material.metalnessNode = mix(float(0.6), float(0.05), U.paper);
+  material.roughnessNode = mix(float(0.26), float(0.85), U.paper);
   // Schimmer: ein schmales Lichtband wandert diagonal über das fertige Siegel
   const home = mix(aSeal, aHey, e3); // der Schimmer läuft auch über „hey.“
   const diag = home.x.sub(SEAL_CENTER.x).add(home.y.sub(SEAL_CENTER.y).mul(0.6));
@@ -275,7 +286,10 @@ export async function createWorld(scene, path, { count, reduced }) {
   material.emissiveNode = base
     .mul(U.glow)
     .mul(sparkle.add(charge2.mul(2.5)))
-    .add(glint.mul(band.mul(1.6).add(press.mul(1.2))));
+    .add(glint.mul(band.mul(1.6).add(press.mul(1.2))))
+    .mul(U.paper.oneMinus()) // Tinte leuchtet nicht …
+    // … außer das Siegel: das Rot kommt als Eigenfarbe, damit Licht es nicht ins Rosa aufhellt
+    .add(inkRed.mul(e2).mul(U.paper).mul(0.85));
 
   const shardSize = 0.075 * Math.sqrt(4000 / count);
   const geometry = new THREE.OctahedronGeometry(shardSize, 0);
@@ -291,7 +305,9 @@ export async function createWorld(scene, path, { count, reduced }) {
   // --- Der leuchtende Kern (Kapitel 1), scheint durch die Lücken der Splitter ---
   const coreMat = new THREE.MeshBasicNodeMaterial();
   // Beim Aufladen glüht der Kern auf, die Supernova blitzt hell
-  coreMat.colorNode = U.coreColor.mul(U.coreGlow.add(U.charge.mul(5)).add(U.burst.mul(10)));
+  const coreLit = U.coreColor.mul(U.coreGlow.add(U.charge.mul(5)).add(U.burst.mul(10)));
+  // Auf Papier wird der leuchtende Kern zum Tintentropfen
+  coreMat.colorNode = mix(coreLit, color(new THREE.Color("#121215")), U.paper);
   const core = new THREE.Mesh(new THREE.SphereGeometry(RADIUS * 0.9, 48, 24), coreMat);
   scene.add(core);
 
@@ -303,6 +319,11 @@ export async function createWorld(scene, path, { count, reduced }) {
   rim.position.set(-5, -2, -10);
   const coreLight = new THREE.PointLight(0xcfdcff, 6, 0, 2);
   scene.add(hemi, key, rim, coreLight);
+
+  // Eigener Nebel-Node: wie FogExp2 (GSAP tweent weiter scene.fog.density), aber
+  // auf Papier fast ausgeschaltet – sonst legt sich ein weißer Schleier über die Tinte
+  const fogDensity = reference("density", "float", scene.fog).mul(U.paper.mul(-0.9).add(1));
+  scene.fogNode = fog(reference("color", "color", scene.fog), densityFogFactor(fogDensity));
 
   if (reduced) U.motion.value = 0;
 

@@ -11,7 +11,7 @@
 //                 Sternschnuppe zieht durchs Bild
 //   5 · Kuzushi   das Siegel schnell zur Seite ziehen → es kippt aus dem
 //                 Gleichgewicht und federt zurück (U.tilt)
-//   6 · Konami    ↑↑↓↓←→←→ → 8-Bit-Edition (post.pixel im Post-Processing)
+//   6 · Konami    ↑↑↓↓←→←→ → Paper Edition: Tinte auf Papier, Siegel rot auf weiß
 //
 // Jeder Fund zählt mit: „Easter egg 2 / 6“ – wer zwei hat, sucht weiter.
 
@@ -19,6 +19,7 @@ import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
 import * as THREE from "three/webgpu";
 import { U } from "./scene.js";
+import { BG } from "./setup.js";
 
 const TOTAL = 6;
 const found = new Set();
@@ -239,18 +240,30 @@ export function createEasterEggs({ reduced, scene, camera, post }) {
     toast(discover("kuzushi"), "Kuzushi. <em>Off balance, and back.</em>");
   }
 
-  // ---------------- 6 · Konami → 8-Bit ----------------
+  // ---------------- 6 · Konami → Paper Edition ----------------
   const KONAMI = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight"];
   let keys = [];
-  let pixelOn = false;
+  let paperOn = false;
+  // Papierweiß, deutlich über 1 – ACES-Tone-Mapping drückt helle Werte sonst ins Grau
+  const NIGHT = BG.clone();
+  const PAPER = new THREE.Color(3.2, 3.05, 2.75);
+
+  function togglePaper() {
+    paperOn = !paperOn;
+    const to = paperOn ? PAPER : NIGHT;
+    const d = reduced ? 0.3 : 1.4;
+    document.body.classList.toggle("paper", paperOn);
+    gsap.to([U.paper, post.paper], { value: paperOn ? 1 : 0, duration: d, ease: "power2.inOut", overwrite: true });
+    // Hintergrund und Nebel gemeinsam umfärben, sonst bleibt am Horizont ein Rest Nacht
+    gsap.to([scene.background, scene.fog.color], { r: to.r, g: to.g, b: to.b, duration: d, ease: "power2.inOut", overwrite: true });
+    if (paperOn) toast(discover("paper"), "Red on white. <em>Where it all began.</em>");
+  }
 
   addEventListener("keydown", (e) => {
     keys = [...keys, e.key].slice(-KONAMI.length);
     if (keys.join() !== KONAMI.join()) return;
     keys = [];
-    pixelOn = !pixelOn;
-    gsap.to(post.pixel, { value: pixelOn ? 1 : 0, duration: 0.6, ease: "steps(6)", overwrite: true });
-    if (pixelOn) toast(discover("konami"), "8-bit edition. <em>Respect the classics.</em>");
+    togglePaper();
   });
 
   // Ein Gruß für alle, die in die Konsole schauen

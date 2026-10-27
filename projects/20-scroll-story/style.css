@@ -234,6 +234,23 @@ body.egg-on .copy--cta {
   line-height: 1.1;
 }
 
+/* Paper Edition: Tinte auf Papier – alle Texte drehen auf dunkel */
+body {
+  color: var(--ink);
+  transition: color 1.2s ease;
+}
+
+body.paper {
+  --ink: #141416;
+  --muted: rgba(20, 20, 22, 0.6);
+  --line: rgba(20, 20, 22, 0.18);
+}
+
+body.paper .toast,
+body.paper .hud {
+  background: rgba(246, 241, 233, 0.75);
+}
+
 /* Gold-Edition: der Signalton wird gold – Titel, Balken, Toast */
 body.gold {
   --red: #d9a441;

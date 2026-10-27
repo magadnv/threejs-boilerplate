@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from "three/webgpu";
-import { pass, renderOutput, uniform, uv, vec4, mix, floor, screenSize, posterize } from "three/tsl";
+import { pass, renderOutput, uniform, uv, vec4 } from "three/tsl";
 // Fertige Effekt-Nodes liegen bei den Addons, nicht direkt in three/tsl
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
 import { vignette } from "three/addons/tsl/display/CRT.js";
@@ -96,22 +96,17 @@ export function createPost(renderer, scene, camera) {
     bloomRadius: uniform(0.55),
     bloomThreshold: uniform(0.42),
     vignette: uniform(0.42),
-    pixel: uniform(0), // Easter Egg 6: 8-Bit-Edition (Konami-Code)
+    paper: uniform(0), // Easter Egg 6: Paper Edition – auf weißem Papier kein Bloom
   };
 
   const scenePass = pass(scene, camera);
   const color = scenePass.getTextureNode("output");
 
-  // 8-Bit: die Szene an groben Rasterpunkten abtasten statt an jedem Pixel
-  const grid = screenSize.div(7);
-  const pixelUV = floor(uv().mul(grid)).add(0.5).div(grid);
-  const base = mix(color, color.sample(pixelUV), post.pixel);
-
-  const glow = bloom(base, post.bloomStrength, post.bloomRadius, post.bloomThreshold);
-  const toned = renderOutput(base.add(glow));
-  // … und die Farben auf wenige Stufen reduzieren
-  const mapped = mix(toned, posterize(toned, 6), post.pixel);
-  pipeline.outputNode = vec4(vignette(mapped.rgb, post.vignette, uniform(0.55), uv()), 1);
+  const glow = bloom(color, post.bloomStrength, post.bloomRadius, post.bloomThreshold);
+  // Papier ist hell – mit Bloom würde die ganze Fläche überstrahlen
+  const mapped = renderOutput(color.add(glow.mul(post.paper.oneMinus())));
+  // Auf Papier nur ein Hauch Vignette, sonst wirkt es schmutzig
+  pipeline.outputNode = vec4(vignette(mapped.rgb, post.vignette.mul(post.paper.mul(-0.8).add(1)), uniform(0.55), uv()), 1);
 
   return { pipeline, post };
 }
