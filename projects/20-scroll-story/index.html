@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scroll Story · Studie 20</title>
+    <meta name="description" content="GSAP × Three.js scroll story – a single point comes apart and becomes a seal." />
+    <link rel="icon" type="image/svg+xml" href="./siegel.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <!-- Die 3D-Szene liegt fixiert hinter allem, die Sections scrollen darüber -->
+    <canvas id="scene" aria-hidden="true"></canvas>
+
+    <header class="brand">
+      <span class="brand__mark">madebymaga</span>
+      <span class="brand__meta">Studie N° 20 — Scroll Story</span>
+    </header>
+
+    <!-- Kapitel-Fortschritt am rechten Rand: ein Balken pro Kapitel -->
+    <nav class="progress" aria-label="Chapters">
+      <ol>
+        <li><span class="progress__num">01</span><span class="progress__bar"><i></i></span></li>
+        <li><span class="progress__num">02</span><span class="progress__bar"><i></i></span></li>
+        <li><span class="progress__num">03</span><span class="progress__bar"><i></i></span></li>
+        <li><span class="progress__num">04</span><span class="progress__bar"><i></i></span></li>
+        <li><span class="progress__num">05</span><span class="progress__bar"><i></i></span></li>
+      </ol>
+    </nav>
+
+    <!-- Jede Section ist nur „Scroll-Strecke“. Die Texte darin sind position: fixed
+         und werden ausschließlich von der Kapitel-Timeline ein- und ausgeblendet. -->
+    <main id="story">
+      <section class="chapter" data-chapter="1" data-name="Intro">
+        <div class="copy copy--intro">
+          <p class="eyebrow">01 — Intro</p>
+          <h1 class="title">One point.</h1>
+          <p class="lead">Everything with weight starts out small.</p>
+        </div>
+        <div class="scroll-cue"><span>Scroll</span><i></i></div>
+      </section>
+
+      <section class="chapter" data-chapter="2" data-name="Approach">
+        <div class="copy copy--left">
+          <p class="eyebrow">02 — Approach</p>
+          <h2 class="title">Closer.</h2>
+          <p class="lead">Look long enough and it comes apart.</p>
+        </div>
+      </section>
+
+      <section class="chapter" data-chapter="3" data-name="Journey">
+        <div class="copy copy--right">
+          <p class="eyebrow">03 — Journey</p>
+          <h2 class="title">Through.</h2>
+          <p class="lead">Every fragment finds its own way.</p>
+        </div>
+      </section>
+
+      <section class="chapter" data-chapter="4" data-name="Transformation">
+        <div class="copy copy--left">
+          <p class="eyebrow">04 — Transformation</p>
+          <h2 class="title">Together.</h2>
+          <p class="lead">Scattered things take shape again.</p>
+        </div>
+      </section>
+
+      <section class="chapter" data-chapter="5" data-name="Outro">
+        <div class="copy copy--cta">
+          <p class="eyebrow">05 — madebymaga</p>
+          <h2 class="title">excellence. <em>simply designed.</em></h2>
+          <p class="lead">I bring weight to the web.</p>
+          <a class="cta" href="https://madebymaga.de" target="_blank" rel="noopener">Start a project <span>→</span></a>
+        </div>
+      </section>
+    </main>
+
+    <!-- Debug-HUD (Taste D) -->
+    <aside class="hud" hidden>
+      <div><b>Chapter</b> <span data-hud="chapter">–</span></div>
+      <div><b>Scroll</b> <span data-hud="scroll">0%</span></div>
+      <div><b>Cam t</b> <span data-hud="cam">0</span></div>
+      <div><b>scatter</b> <span data-hud="scatter">0</span> <b>form</b> <span data-hud="form">0</span></div>
+      <div><b>FPS</b> <span data-hud="fps">–</span> <b>GPU</b> <span data-hud="backend">–</span></div>
+    </aside>
+
+    <div class="keys">D Debug · H Hide · A Auto-Scroll</div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

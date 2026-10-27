@@ -1,0 +1,350 @@
+/* ============================================================
+   20 · Scroll Story – dunkel, ruhig, große Typo, ein Rot
+   ============================================================ */
+
+:root {
+  --bg: #060609;
+  --ink: #f3efe9;
+  --muted: rgba(243, 239, 233, 0.55);
+  --line: rgba(243, 239, 233, 0.16);
+  --red: #cf1830;
+  --pad: clamp(20px, 4.5vw, 72px);
+  --serif: "Instrument Serif", "Times New Roman", serif;
+  --sans: "Inter", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--bg);
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--red);
+  color: #fff;
+}
+
+/* --- Canvas fixiert im Hintergrund, blendet nach dem ersten Frame weich ein --- */
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 1.6s ease;
+}
+
+body.is-ready #scene {
+  opacity: 1;
+}
+
+/* Vor dem Start keine Texte zeigen (sonst blitzen sie vor SplitText kurz auf) */
+body:not(.is-ready) .copy,
+body:not(.is-ready) .scroll-cue {
+  visibility: hidden;
+}
+
+/* --- Scroll-Strecken: die Höhe bestimmt, wie lange ein Kapitel dauert --- */
+#story {
+  position: relative;
+  z-index: 1;
+}
+
+.chapter {
+  position: relative;
+}
+.chapter[data-chapter="1"] { height: 130vh; }
+.chapter[data-chapter="2"] { height: 150vh; }
+.chapter[data-chapter="3"] { height: 150vh; }
+.chapter[data-chapter="4"] { height: 130vh; }
+.chapter[data-chapter="5"] { height: 150vh; }
+
+/* --- Texte: fixiert, nur die Timelines zeigen sie --- */
+.copy {
+  position: fixed;
+  left: var(--pad);
+  right: var(--pad);
+  bottom: clamp(56px, 12vh, 140px);
+  pointer-events: none;
+}
+
+.copy--intro {
+  text-align: center;
+}
+
+.copy--left {
+  right: auto;
+  max-width: min(60vw, 900px);
+}
+
+.copy--right {
+  left: auto;
+  right: calc(var(--pad) + 64px); /* Platz für den Fortschrittsbalken */
+  text-align: right;
+  max-width: min(60vw, 900px);
+}
+
+.copy--cta {
+  pointer-events: auto;
+}
+
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+
+.title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(64px, 13vw, 230px);
+  line-height: 0.88;
+  letter-spacing: -0.035em;
+  perspective: 900px; /* für die 3D-Drehung der Buchstaben im Intro */
+}
+
+.copy--cta .title {
+  font-size: clamp(48px, 8.6vw, 150px);
+}
+
+.title em {
+  font-style: italic;
+  color: var(--red);
+}
+
+.lead {
+  margin-top: 22px;
+  font-size: clamp(15px, 1.25vw, 19px);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.cta {
+  display: inline-flex;
+  gap: 14px;
+  align-items: center;
+  margin-top: 34px;
+  padding: 16px 26px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 15px;
+  text-decoration: none;
+  transition: background 0.35s ease, border-color 0.35s ease;
+}
+
+.cta:hover,
+.cta:focus-visible {
+  background: var(--red);
+  border-color: var(--red);
+}
+
+.cta span {
+  transition: transform 0.35s ease;
+}
+
+.cta:hover span {
+  transform: translateX(4px);
+}
+
+/* --- Header --- */
+.brand {
+  position: fixed;
+  top: var(--pad);
+  left: var(--pad);
+  z-index: 3;
+  display: flex;
+  gap: 18px;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.brand__mark {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 22px;
+}
+
+.brand__meta {
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+/* --- Scroll-Hinweis im Intro --- */
+.scroll-cue {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.scroll-cue i {
+  width: 1px;
+  height: 36px;
+  background: linear-gradient(var(--ink), transparent);
+  animation: cue 2s ease-in-out infinite;
+  transform-origin: top;
+}
+
+@keyframes cue {
+  0% { transform: scaleY(0); }
+  50% { transform: scaleY(1); }
+  100% { transform: scaleY(1); opacity: 0; }
+}
+
+/* --- Kapitel-Fortschritt --- */
+.progress {
+  position: fixed;
+  right: var(--pad);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+}
+
+.progress ol {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.progress li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  transition: color 0.4s ease;
+}
+
+.progress li.is-active {
+  color: var(--ink);
+}
+
+.progress__bar {
+  position: relative;
+  width: 2px;
+  height: 46px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.progress__bar i {
+  position: absolute;
+  inset: 0;
+  background: var(--red);
+  transform: scaleY(0);
+  transform-origin: top;
+}
+
+/* --- Debug-HUD und Tastenhinweis --- */
+.hud {
+  position: fixed;
+  left: var(--pad);
+  top: calc(var(--pad) + 40px);
+  z-index: 4;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(6, 6, 9, 0.7);
+  backdrop-filter: blur(8px);
+  font: 11px/1.4 ui-monospace, "SF Mono", monospace;
+}
+
+.hud b {
+  font-weight: 500;
+  color: var(--muted);
+  margin-right: 4px;
+}
+
+.keys {
+  position: fixed;
+  right: var(--pad);
+  bottom: 22px;
+  z-index: 3;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* ScrollTrigger-Marker existieren immer, sind aber nur im Debug-Modus sichtbar */
+body:not(.debug) [class*="gsap-marker"] {
+  visibility: hidden !important;
+}
+
+/* Taste H: alles Technische weg – sauber für die Aufnahme */
+body.clean .keys,
+body.clean .hud,
+body.clean [class*="gsap-marker"] {
+  display: none !important;
+}
+
+/* Auto-Scroll: Mauszeiger verstecken */
+body.autoplay {
+  cursor: none;
+}
+
+/* --- Mobile --- */
+@media (max-width: 768px) {
+  .copy--left,
+  .copy--right {
+    left: var(--pad);
+    right: var(--pad);
+    max-width: none;
+    text-align: left;
+  }
+
+  .progress {
+    right: 12px;
+  }
+
+  .progress__num {
+    display: none;
+  }
+
+  .progress__bar {
+    height: 30px;
+  }
+
+  .brand__meta,
+  .keys {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-cue i {
+    animation: none;
+  }
+}
+
+/* display: grid oben würde das hidden-Attribut sonst überstimmen */
+.hud[hidden] {
+  display: none;
+}
