@@ -161,9 +161,17 @@
       #card .btn.alt { background: var(--white); color: var(--red); box-shadow: 0 6px 0 #e7d3bd; margin-left: 12px; }
       #card .btn.alt[hidden] { display: none; }
       #card .levels { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+      /* Themen-Umschalter Stehen ↔ Fallen (Kinder) */
+      #card .topics { display: flex; gap: 10px; justify-content: center; margin: -6px 0 22px; }
+      #card .topics[hidden] { display: none; }
+      #card .topics a, #card .topics span {
+        padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: 19px; text-decoration: none;
+        background: var(--white); color: #8a6a55; box-shadow: 0 3px 0 #e7d3bd;
+      }
+      #card .topics span { background: var(--red); color: var(--white); box-shadow: none; }
       #card .levels[hidden] { display: none; }
       #card .levels button {
-        width: min(200px, 40vw); padding: 20px 12px; border-radius: 28px; background: var(--white);
+        width: min(172px, 40vw); padding: 20px 10px; border-radius: 28px; background: var(--white);
         box-shadow: 0 6px 0 #e7d3bd; text-align: center; color: var(--ink);
       }
       #card .levels button b { display: block; font-size: clamp(22px, 4vw, 30px); color: var(--red); }
@@ -230,6 +238,7 @@
     <div id="card"><div class="inner">
       <div class="seal" hidden>🪨</div>
       <h1></h1>
+      <div class="topics" hidden><span>🪨 Stehen</span><a href="../15-fallschule/">🤸 Fallen</a></div>
       <p></p>
       <div class="levels" hidden>
         <button data-level="1"><b>Level 1</b><span>Steh wie ein Fels</span></button>
@@ -818,7 +827,8 @@
       }
 
       // Karte mit max. einem Satz (h1 = Überschrift, p = Satz)
-      function showCard({ title = "", text = "", button, seal = false, sealIcon = "🪨", onClick, button2, onClick2, levels }) {
+      function showCard({ title = "", text = "", button, seal = false, sealIcon = "🪨", onClick, button2, onClick2, levels, topics = false }) {
+        card.querySelector(".topics").hidden = !topics;
         card.querySelector("h1").textContent = title;
         card.querySelector("h1").classList.toggle("long", title.length > 30);
         card.querySelector("p").textContent = text;
@@ -1011,7 +1021,7 @@
         start() {
           resetScene();
           showCard({
-            seal: true, title: "Der Fels", text: "Welches Level spielst du?",
+            seal: true, title: "Der Fels", topics: true, text: "Welches Level spielst du?",
             levels: (n) => [flow.level1, flow.level2, flow.level3, flow.level4, flow.level5][n - 1](),
           });
         },

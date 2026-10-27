@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="description" content="Fallschule – Kinder lernen, sicher zu fallen: Kinn zur Brust, klein machen, rund rollen, klatschen statt abstützen." />
+    <title>Fallschule</title>
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js"
+        }
+      }
+    </script>
+    <style>
+      /* ---------- Farben & Grundlagen (wie „Der Fels“) ---------- */
+      :root {
+        --bg: #fff3e3;
+        --ink: #2b1b17;
+        --red: #cf1830;
+        --white: #ffffff;
+        --ok: #1db954;
+        --out: #e5243b;
+        --gold: #ffd23f;
+        --soft: #e7d3bd;
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body {
+        margin: 0; height: 100%; overflow: hidden;
+        background: var(--bg); color: var(--ink);
+        font-family: "Fredoka", system-ui, sans-serif;
+        user-select: none; -webkit-user-select: none;
+        touch-action: none; overscroll-behavior: none;
+      }
+      canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      button { font-family: inherit; cursor: pointer; border: 0; }
+
+      /* ---------- Modus-Umschalter (gleich in allen Seiten) ---------- */
+      .modes {
+        position: fixed; left: 50%; top: calc(12px + var(--safe-top)); transform: translateX(-50%); z-index: 6;
+        display: flex; padding: 5px; border-radius: 999px; background: var(--white); box-shadow: 0 3px 0 var(--soft);
+      }
+      .modes a {
+        padding: 8px 14px; border-radius: 999px; font-size: 17px; font-weight: 600;
+        color: #8a6a55; text-decoration: none; white-space: nowrap;
+      }
+      .modes a[aria-current="page"] { background: var(--red); color: var(--white); }
+
+      /* ---------- Satz oben (max. ein Satz pro Screen) ---------- */
+      #say {
+        position: fixed; left: 16px; right: 16px; top: calc(76px + var(--safe-top));
+        text-align: center; font-weight: 700; line-height: 1.1;
+        font-size: clamp(28px, 6vw, 52px); pointer-events: none; text-wrap: balance;
+      }
+      #stars {
+        position: fixed; left: 50%; top: calc(76px + var(--safe-top) + clamp(40px, 8vw, 70px));
+        transform: translateX(-50%); display: flex; gap: 10px;
+        font-size: clamp(30px, 6vw, 44px); pointer-events: none; opacity: 0;
+      }
+      #stars span { color: var(--soft); display: inline-block; }
+      #stars span.on { color: var(--gold); text-shadow: 0 2px 0 #c99a00; }
+
+      /* ---------- Knöpfe ---------- */
+      .btn {
+        background: var(--red); color: var(--white); font-weight: 700;
+        font-size: clamp(24px, 4.5vw, 34px); padding: 18px 44px; border-radius: 999px;
+        box-shadow: 0 6px 0 #8f0f20, 0 14px 30px rgba(207, 24, 48, 0.3); transition: transform 0.12s;
+      }
+      .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #8f0f20; }
+      #action { position: fixed; left: 50%; bottom: calc(28px + var(--safe-bottom)); transform: translateX(-50%); opacity: 0; pointer-events: none; z-index: 3; }
+      .round {
+        position: fixed; top: calc(14px + var(--safe-top)); height: 52px; border-radius: 999px; background: var(--white);
+        box-shadow: 0 3px 0 var(--soft); z-index: 5; font-size: 18px; font-weight: 700; color: var(--ink);
+      }
+      #sound { right: calc(14px + env(safe-area-inset-right, 0px)); width: 52px; font-size: 24px; }
+      #levelBtn { left: calc(14px + env(safe-area-inset-left, 0px)); padding: 0 18px; }
+
+      /* ---------- Karte ---------- */
+      #card {
+        position: fixed; inset: 0; display: grid; place-items: center; z-index: 4;
+        background: rgba(255, 243, 227, 0.78); backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px); opacity: 0; pointer-events: none;
+      }
+      #card .inner { text-align: center; padding: 16px; max-width: 980px; }
+      #card h1 {
+        margin: 0 0 10px; font-weight: 700; line-height: 1; white-space: pre-line;
+        font-size: clamp(44px, 10vw, 96px); color: var(--red); text-wrap: balance;
+      }
+      #card h1.long { font-size: clamp(34px, 6.4vw, 68px); }
+      #card p { margin: 0 0 30px; font-weight: 600; line-height: 1.15; font-size: clamp(24px, 4.6vw, 40px); text-wrap: balance; }
+      #card .seal {
+        width: 96px; height: 96px; margin: 0 auto 18px; border-radius: 50%;
+        border: 6px solid var(--red); display: grid; place-items: center; font-size: 48px; background: var(--white);
+      }
+      #card .seal[hidden], #card .btn[hidden], #card .levels[hidden], #card .topics[hidden] { display: none; }
+      #card .btn.alt { background: var(--white); color: var(--red); box-shadow: 0 6px 0 var(--soft); margin-left: 12px; }
+      #card .levels { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+      #card .levels button {
+        width: min(172px, 40vw); padding: 20px 10px; border-radius: 28px; background: var(--white);
+        box-shadow: 0 6px 0 var(--soft); color: var(--ink);
+      }
+      #card .levels button b { display: block; font-size: clamp(22px, 4vw, 30px); color: var(--red); }
+      #card .levels button span { font-size: clamp(16px, 2.6vw, 20px); font-weight: 600; }
+      #card .topics { display: flex; gap: 10px; justify-content: center; margin: -6px 0 22px; }
+      #card .topics a, #card .topics span {
+        padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: 19px; text-decoration: none;
+        background: var(--white); color: #8a6a55; box-shadow: 0 3px 0 var(--soft);
+      }
+      #card .topics span { background: var(--red); color: var(--white); box-shadow: none; }
+
+      /* ---------- Fallschul-Knöpfe ---------- */
+      #moves {
+        position: fixed; left: 50%; bottom: calc(22px + var(--safe-bottom)); transform: translateX(-50%);
+        display: flex; gap: 10px; z-index: 3;
+      }
+      .move {
+        width: clamp(78px, 15vw, 116px); padding: 12px 6px 10px; border-radius: 24px; background: var(--white);
+        box-shadow: 0 6px 0 var(--soft); color: var(--ink); display: none; text-align: center;
+      }
+      .move.show { display: block; }
+      .move i { display: block; font-style: normal; font-size: clamp(30px, 6vw, 42px); line-height: 1.1; }
+      .move b { display: block; font-size: clamp(15px, 2.8vw, 20px); }
+      .move.on { background: var(--ok); color: var(--white); box-shadow: 0 6px 0 #138a3e; }
+      .move.trap.on { background: var(--out); box-shadow: 0 6px 0 #9c1222; }
+      .move:active { transform: translateY(4px); }
+      .move.pulse { animation: pulse 0.9s ease-in-out infinite; }
+      @keyframes pulse { 50% { transform: scale(1.12); } }
+
+      /* ---------- Aua-Meter ---------- */
+      #aua {
+        position: fixed; right: calc(20px + env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%);
+        width: 74px; text-align: center; opacity: 0; pointer-events: none; z-index: 2;
+      }
+      #aua .face { font-size: 46px; line-height: 1; margin-bottom: 8px; }
+      #aua .bar { position: relative; height: min(260px, 38vh); border-radius: 999px; background: var(--white); box-shadow: inset 0 3px 0 #ead8c4; overflow: hidden; margin: 0 auto; width: 34px; }
+      #aua .fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0%; background: linear-gradient(#e5243b, #ffb020 55%, #1db954); background-size: 100% min(260px, 38vh); background-position: bottom; }
+      #aua .lbl { font-weight: 700; font-size: 18px; margin-top: 8px; }
+      #aua .num { font-weight: 700; font-size: 26px; }
+
+      /* ---------- Countdown + Beschriftungen ---------- */
+      #count {
+        position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 2;
+        font-weight: 700; font-size: clamp(90px, 22vw, 200px); color: var(--red); opacity: 0;
+        text-shadow: 0 6px 0 rgba(143, 15, 32, 0.25);
+      }
+      .tag {
+        position: fixed; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 22px;
+        background: var(--white); pointer-events: none; opacity: 0; transform: translate(-50%, -50%);
+        box-shadow: 0 3px 0 rgba(0,0,0,0.08); white-space: nowrap; z-index: 2;
+      }
+      .tag.bad { background: var(--out); color: var(--white); }
+      .tag.good { background: var(--ok); color: var(--white); }
+      #tagHeight { color: #b98900; }
+      @media (max-width: 600px) { #aua { right: 8px; width: 60px; } }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <!-- Modus-Umschalter -->
+    <nav class="modes" aria-label="Altersstufe">
+      <a href="../12-fels/" aria-current="page">Kinder</a>
+      <a href="../13-kuzushi/">Teens</a>
+      <a href="../14-drittes-bein/">Erwachsene</a>
+    </nav>
+
+    <div id="say" aria-live="polite"></div>
+    <div id="stars" aria-hidden="true"><span>★</span><span>★</span><span>★</span></div>
+    <button id="sound" class="round" aria-label="Ton an oder aus">🔊</button>
+    <button id="levelBtn" class="round" aria-label="Level wählen">☰ Level</button>
+    <button id="action" class="btn"></button>
+    <div id="count"></div>
+
+    <div id="aua" aria-hidden="true">
+      <div class="face">😄</div>
+      <div class="bar"><div class="fill"></div></div>
+      <div class="lbl">Aua</div>
+      <div class="num">0</div>
+    </div>
+
+    <div id="moves">
+      <button class="move" data-move="squat"><i>🧎</i><b>Hock</b></button>
+      <button class="move" data-move="chin"><i>🙇</i><b>Kinn</b></button>
+      <button class="move" data-move="round"><i>🟠</i><b>Rund</b></button>
+      <button class="move" data-move="slap"><i>👏</i><b>Klatsch</b></button>
+      <button class="move trap" data-move="post"><i>✋</i><b>Abstützen</b></button>
+    </div>
+
+    <div id="tagHead" class="tag bad">Kopf!</div>
+    <div id="tagBack" class="tag bad">Rücken!</div>
+    <div id="tagHand" class="tag bad">Handgelenk!</div>
+    <div id="tagSlap" class="tag good">Klatsch!</div>
+    <div id="tagHeight" class="tag">Fallhöhe</div>
+
+    <div id="card"><div class="inner">
+      <div class="seal" hidden>🤸</div>
+      <h1></h1>
+      <div class="topics" hidden><a href="../12-fels/">🪨 Stehen</a><span>🤸 Fallen</span></div>
+      <p></p>
+      <div class="levels" hidden>
+        <button data-level="1"><b>Level 1</b><span>Kinn zur Brust</span></button>
+        <button data-level="2"><b>Level 2</b><span>Mach dich klein</span></button>
+        <button data-level="3"><b>Level 3</b><span>Rund wie ein Ball</span></button>
+        <button data-level="4"><b>Level 4</b><span>Klatschen</span></button>
+        <button data-level="5"><b>Level 5</b><span>Alles zusammen</span></button>
+      </div>
+      <button class="btn main"></button><button class="btn alt" hidden></button>
+    </div></div>
+
+    <script type="module">
+      import * as THREE from "three";
+
+      /* =====================================================================
+         FALLSCHULE · Kinder
+         Das zweite Thema nach „Der Fels“: Wer andere umwirft, muss selbst sicher fallen.
+
+         Level 1  Kinn zur Brust      – ohne Kinn knallt der Kopf auf die Matte
+         Level 2  Mach dich klein     – Fallenergie E = m·g·h: aus der Hocke halb so viel
+         Level 3  Rund wie ein Ball   – runder Rücken rollt ab: der Aufprall dauert länger,
+                                        die Spitzenkraft (F ≈ Impuls / Zeit) wird kleiner
+         Level 4  Klatschen           – die Arme schlagen kurz vor dem Rücken auf und nehmen
+                                        Energie weg; Abstützen mit der Hand = Handgelenk
+         Level 5  Alles zusammen      – Bo schubst dich ohne Vorwarnung
+
+         Physik des Fallens: Die Figur ist ein starrer Körper, der nach hinten über die
+         Fersenkante kippt (gleicher Kippblock wie bei „Der Fels“):
+           φ'' = p² · sin(|φ| − α),  p² = 3g / (4R),  R = √(b² + h²)
+         Beim Aufprall zählt die Energie aus der Fallhöhe. Das Aua-Meter teilt sie auf
+         Kopf, Rücken und Hand auf – je nachdem, was das Kind richtig gemacht hat.
+         ===================================================================== */
+
+      // ---------- Einstellungen ----------
+      const G = 9.81;
+      const THIGH = 0.75, HIP_HALF = 0.2;
+      const FOOT_HALF_X = 0.15, FOOT_HALF_Z = 0.27;
+      const MIN_HIP = 0.72;
+      const COM_ABOVE_HIP = 0.45;
+      const LYING_COM = 0.55;              // Schwerpunkt-Höhe im Liegen
+      const STAND = { w: 0.5, t: 0.85 };   // normal stehen
+      const SQUAT = { w: 0.45, t: 0 };     // Hocke: tiefe Hüfte
+      const SLAP_FROM = 0.6;               // Klatschen zählt im letzten Teil des Falls (ab 60 % des Weges)
+      const COLORS = {
+        bg: 0xfff3e3, mat: 0xf9b233, matBorder: 0xcf1830, gi: 0xffffff,
+        head: 0x14b8a6, belt: 0xff6b00, gold: 0xffd23f, ok: 0x1db954, out: 0xe5243b,
+      };
+
+      // ---------- Renderer, Szene, Kamera ----------
+      const canvas = document.getElementById("scene");
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(COLORS.bg);
+      scene.fog = new THREE.Fog(COLORS.bg, 18, 34);
+      const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
+      const camLook = new THREE.Vector3(0, 1.1, 0);
+      const shake = { amp: 0 };
+
+      scene.add(new THREE.HemisphereLight(0xfff8ee, 0xf2a65a, 1.6));
+      const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+      sun.position.set(-4, 9, 6);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(1024, 1024);
+      Object.assign(sun.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 1, far: 25 });
+      sun.shadow.radius = 6;
+      scene.add(sun);
+
+      // ---------- Matte ----------
+      const mat = new THREE.Mesh(new THREE.BoxGeometry(16, 0.3, 9), new THREE.MeshStandardMaterial({ color: COLORS.matBorder, roughness: 0.9 }));
+      mat.position.y = -0.15;
+      mat.receiveShadow = true;
+      scene.add(mat);
+      const matInner = new THREE.Mesh(new THREE.PlaneGeometry(14, 7), new THREE.MeshStandardMaterial({ color: COLORS.mat, roughness: 0.95 }));
+      matInner.rotation.x = -Math.PI / 2;
+      matInner.position.y = 0.001;
+      matInner.receiveShadow = true;
+      scene.add(matInner);
+      // Klatsch-Welle auf der Matte
+      const wave = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
+      wave.rotation.x = -Math.PI / 2;
+      wave.position.y = 0.02;
+      scene.add(wave);
+
+      // ---------- Die Figur (wie bei „Der Fels“) ----------
+      const toon = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.55, flatShading: true });
+      const mGi = toon(COLORS.gi), mHead = toon(COLORS.head), mBelt = toon(COLORS.belt);
+      const mDark = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+      const mCheek = new THREE.MeshBasicMaterial({ color: 0xff8fa3 });
+      const ico = (r, d = 1) => new THREE.IcosahedronGeometry(r, d);
+      const shadowy = (m) => ((m.castShadow = true), m);
+
+      const figure = new THREE.Group(); // kippt und rollt über die Matrix
+      figure.matrixAutoUpdate = false;
+      scene.add(figure);
+      const upper = new THREE.Group();  // Oberkörper: krümmt sich beim „Rund“
+      figure.add(upper);
+      const torso = shadowy(new THREE.Mesh(ico(1, 2), mGi));
+      torso.scale.set(0.6, 0.62, 0.48);
+      torso.position.y = 0.42;
+      upper.add(torso);
+      const belt = shadowy(new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.07, 6, 18), mBelt));
+      belt.rotation.x = Math.PI / 2;
+      belt.scale.set(1, 0.82, 1);
+      belt.position.y = 0.2;
+      upper.add(belt);
+      const knot = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.26, 0.05), mBelt));
+      knot.position.set(0.12, 0.08, 0.46);
+      knot.rotation.z = 0.35;
+      upper.add(knot);
+
+      const head = new THREE.Group();
+      head.position.y = 1.2;
+      upper.add(head);
+      head.add(shadowy(new THREE.Mesh(ico(0.42, 2), mHead)));
+      const eyes = [];
+      for (const s of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 8), mDark);
+        eye.position.set(s * 0.14, 0.05, 0.38);
+        head.add(eye);
+        eyes.push(eye);
+        const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.06, 12), mCheek);
+        cheek.position.set(s * 0.25, -0.08, 0.34);
+        cheek.rotation.y = s * 0.55;
+        head.add(cheek);
+      }
+      const smile = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.018, 6, 12, Math.PI), mDark);
+      smile.position.set(0, -0.07, 0.4);
+      smile.rotation.z = Math.PI;
+      head.add(smile);
+      const dizzy = new THREE.Group();
+      dizzy.position.y = 0.62;
+      dizzy.visible = false;
+      head.add(dizzy);
+      {
+        const shape = new THREE.Shape();
+        for (let i = 0; i < 10; i++) {
+          const a = (i / 10) * Math.PI * 2 - Math.PI / 2, r = i % 2 ? 0.05 : 0.12;
+          i ? shape.lineTo(Math.cos(a) * r, Math.sin(a) * r) : shape.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        }
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.03, bevelEnabled: false });
+        for (let i = 0; i < 3; i++) {
+          const st = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: COLORS.gold }));
+          const a = (i / 3) * Math.PI * 2;
+          st.position.set(Math.cos(a) * 0.4, 0, Math.sin(a) * 0.4);
+          dizzy.add(st);
+        }
+      }
+
+      // Arme: Drehpunkt an der Schulter; rot = Ruhe-, Klatsch- oder Abstütz-Haltung
+      const arms = [-1, 1].map((s) => {
+        const pivot = new THREE.Group();
+        pivot.position.set(s * 0.52, 0.72, 0);
+        const arm = shadowy(new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.42, 3, 8), mGi));
+        arm.position.y = -0.26;
+        const hand = shadowy(new THREE.Mesh(ico(0.12, 1), mHead));
+        hand.position.y = -0.56;
+        pivot.add(arm, hand);
+        pivot.rotation.z = s * 0.35;
+        upper.add(pivot);
+        return { pivot, s };
+      });
+
+      const limbGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
+      const legs = [-1, 1].map((s) => {
+        const thigh = shadowy(new THREE.Mesh(limbGeo, mGi));
+        const shin = shadowy(new THREE.Mesh(limbGeo, mGi));
+        thigh.scale.set(0.14, 1, 0.14);
+        shin.scale.set(0.12, 1, 0.12);
+        const knee = shadowy(new THREE.Mesh(ico(0.135, 1), mGi));
+        const hip = shadowy(new THREE.Mesh(ico(0.15, 1), mGi));
+        const foot = shadowy(new THREE.Mesh(ico(1, 1), mHead));
+        foot.scale.set(FOOT_HALF_X, 0.1, FOOT_HALF_Z);
+        figure.add(thigh, shin, knee, hip, foot);
+        return { s, thigh, shin, knee, hip, foot };
+      });
+
+      // ---------- Haltung ----------
+      // Die Figur schaut nach links (zur Kamera-Linken) und fällt nach hinten = nach rechts.
+      const pose = { w: STAND.w, t: STAND.t, wTarget: STAND.w, tTarget: STAND.t, hipY: 1.3, yaw: -Math.PI / 2 };
+      const UP = new THREE.Vector3(0, 1, 0);
+      const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpC = new THREE.Vector3();
+      const maxHip = (w) => Math.sqrt(Math.max(0.01, (2 * THIGH * 0.97) ** 2 - (w / 2 - HIP_HALF) ** 2));
+      function placeLimb(mesh, a, b) {
+        mesh.position.copy(a).add(b).multiplyScalar(0.5);
+        tmpC.copy(b).sub(a);
+        mesh.scale.y = tmpC.length();
+        mesh.quaternion.setFromUnitVectors(UP, tmpC.normalize());
+      }
+      function applyPose() {
+        const { w, t } = pose;
+        pose.hipY = THREE.MathUtils.lerp(MIN_HIP, maxHip(w), t);
+        upper.position.y = pose.hipY;
+        for (const L of legs) {
+          const H = tmpA.set(L.s * HIP_HALF, pose.hipY, 0);
+          const F = tmpB.set(L.s * w / 2, 0.12, 0);
+          const d = Math.min(H.distanceTo(F), 2 * THIGH - 0.001);
+          const u = F.clone().sub(H).normalize();
+          const v = new THREE.Vector3(L.s * 0.35, 0, 1);
+          v.addScaledVector(u, -v.dot(u)).normalize();
+          const K = H.clone().add(F).multiplyScalar(0.5).addScaledVector(v, Math.sqrt(THIGH * THIGH - (d / 2) ** 2));
+          placeLimb(L.thigh, H, K);
+          placeLimb(L.shin, K, F);
+          L.hip.position.copy(H);
+          L.knee.position.copy(K);
+          L.foot.position.set(L.s * w / 2, 0.08, 0.05);
+        }
+      }
+      const comH = () => pose.hipY + COM_ABOVE_HIP;
+
+      // ---------- Körperhaltungen der Fallschule (weich mit GSAP) ----------
+      const body = { chin: 0, curl: 0, armOut: 0, armPost: 0, armFwd: 0, whip: 0 };
+      function applyBody() {
+        head.rotation.x = body.chin * 0.6 + body.whip;        // Kinn zur Brust (whip: Kopf schlägt nach)
+        upper.rotation.x = body.curl * 0.45;                  // Rücken rund
+        torso.scale.z = 0.48 + body.curl * 0.12;
+        for (const a of arms) {
+          // Ruhe → Klatsch (Arme 45° zur Seite) → Abstützen (ein Arm gestreckt nach hinten)
+          a.pivot.rotation.z = a.s * (0.35 + body.armOut * 0.85);
+          a.pivot.rotation.x = -body.armFwd * 0.9 + (a.s > 0 ? body.armPost * 1.6 : 0); // + = nach hinten
+        }
+      }
+
+      // ---------- Physik: Fall nach hinten (Kippblock über die Ferse) ----------
+      const fall = {
+        active: false, phi: 0, w: 0, lie: 1.4, landed: false, timeScale: 1,
+        roll: 0, contact: new THREE.Vector3(), // Abrollen nach der Landung (runder Rücken)
+        // was das Kind in diesem Fall gemacht hat
+        chin: false, squat: false, round: false, slap: "none", post: false, h0: 1.75,
+      };
+      function lieAngle(b, alpha) {
+        const yT = pose.hipY + 0.42, yH = pose.hipY + 1.2;
+        for (let a = alpha; a < Math.PI / 2; a += 0.005) {
+          const s = Math.sin(a), c = Math.cos(a);
+          if (b * s + yT * c <= 0.48 || b * s + yH * c <= 0.42) return a;
+        }
+        return Math.PI / 2;
+      }
+      function stepFall(dt) {
+        if (!fall.active || fall.landed) return;
+        const b = FOOT_HALF_Z, h = comH();
+        const R = Math.hypot(b, h), alpha = Math.atan2(b, h), p2 = (3 * G) / (4 * R);
+        const n = Math.ceil(dt / (1 / 300));
+        for (let i = 0; i < n; i++) {
+          fall.w += p2 * Math.sin(fall.phi - alpha) * (dt / n);
+          fall.phi += fall.w * (dt / n);
+          if (fall.phi >= fall.lie) { fall.phi = fall.lie; land(); return; }
+        }
+      }
+      // Anteil des Fallwegs (0 … 1) – fürs Klatsch-Timing
+      const fallProgress = () => (fall.active ? fall.phi / fall.lie : 0);
+
+      // Schubs nach hinten: kurz über die Fersenkante drücken, dann übernimmt die Schwerkraft
+      function startFall() {
+        const b = FOOT_HALF_Z, h = comH();
+        const alpha = Math.atan2(b, h);
+        fall.h0 = h;
+        fall.squat = pose.t < 0.3;
+        fall.lie = lieAngle(b, alpha);
+        fall.landed = false;
+        sfx.whoosh();
+        gsap.to(fall, {
+          phi: alpha * 1.03, duration: 0.35, ease: "power1.in",
+          onComplete: () => { fall.w = 0.3; fall.active = true; },
+        });
+      }
+
+      // ---------- Landung: Aua berechnen und zeigen ----------
+      let onLand = null;
+      function land() {
+        fall.landed = true;
+        // Fallenergie pro kg aus der Höhe (E = g·h), 0 … 1 bezogen auf hohes Stehen
+        const e = THREE.MathUtils.clamp((fall.h0 - LYING_COM) / (1.85 - LYING_COM), 0, 1);
+        const slapF = fall.slap === "good" ? 0.5 : fall.slap === "early" ? 0.8 : 1;
+        const parts = {
+          head: fall.chin ? 0 : 60 * e,
+          back: 100 * e * (fall.round ? 0.35 : 1) * slapF * (fall.post ? 0.7 : 1),
+          hand: fall.post ? 70 * e : 0,
+        };
+        const total = Math.min(100, Math.round(parts.head + parts.back * 0.6 + parts.hand));
+        const result = { ...parts, total, e };
+
+        // Kontaktpunkt unter dem Rücken (für das Abrollen)
+        figure.updateMatrixWorld(true);
+        torso.getWorldPosition(fall.contact);
+        fall.contact.y = 0;
+
+        if (fall.slap === "good") { slapWave(); sfx.slap(); flashTag(tagSlap, upper, 0.9); }
+        if (!fall.chin) {
+          // Kopf schlägt nach
+          gsap.fromTo(body, { whip: -0.6 }, { whip: 0, duration: 0.6, ease: "elastic.out(1, 0.4)" });
+          dizzy.visible = true;
+          gsap.fromTo(dizzy.scale, { x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 1, duration: 0.5, ease: "back.out(3)" });
+          eyes.forEach((el) => gsap.to(el.scale, { y: 0.2, duration: 0.15 }));
+          sfx.bonk();
+          flashTag(tagHead, head, 0.6);
+        }
+        if (fall.post) { sfx.crack(); flashTag(tagHand, arms[1].pivot, 0.4); }
+        if (fall.round) {
+          // runder Rücken: rollt wie eine Schaukel ab
+          sfx.plopp();
+          gsap.timeline()
+            .to(fall, { roll: 0.75, duration: 0.45, ease: "power2.out" })
+            .to(fall, { roll: -0.12, duration: 0.5, ease: "sine.inOut" })
+            .to(fall, { roll: 0.22, duration: 0.45, ease: "sine.inOut" })
+            .to(fall, { roll: 0, duration: 0.5, ease: "sine.inOut" });
+        } else {
+          sfx.thud(e);
+          shake.amp = 0.08 + e * 0.22;
+          if (parts.back * 0.6 > 15) flashTag(tagBack, torso, 0.2);
+        }
+        showAua(total);
+        onLand?.(result);
+      }
+
+      // Aufstehen: zurück in den Stand, alles zurücksetzen
+      function standUp() {
+        return new Promise((resolve) => {
+          fall.active = false;
+          gsap.killTweensOf(fall);
+          gsap.to(dizzy.scale, { x: 0, y: 0, z: 0, duration: 0.25, onComplete: () => (dizzy.visible = false) });
+          eyes.forEach((el) => gsap.to(el.scale, { y: 1, duration: 0.2, delay: 0.3 }));
+          gsap.to(body, { chin: 0, curl: 0, armOut: 0, armPost: 0, armFwd: 0, duration: 0.6 });
+          pose.wTarget = STAND.w;
+          pose.tTarget = STAND.t;
+          gsap.to(fall, {
+            phi: 0, roll: 0, duration: 0.9, ease: "back.out(1.3)",
+            onComplete: () => {
+              Object.assign(fall, { phi: 0, w: 0, roll: 0, landed: false, chin: false, squat: false, round: false, slap: "none", post: false });
+              resolve();
+            },
+          });
+          hideAua();
+        });
+      }
+
+      // ---------- Figur-Matrix: Drehung (yaw) · Abrollen · Kippen über die Ferse ----------
+      const mYaw = new THREE.Matrix4(), mT = new THREE.Matrix4(), mR = new THREE.Matrix4(), mT2 = new THREE.Matrix4();
+      const mTip = new THREE.Matrix4(), mRoll = new THREE.Matrix4(), contactLocal = new THREE.Vector3();
+      function updateFigureMatrix() {
+        // Kippen nach hinten: lokal um die hintere Fußkante (z = −b), Drehung um x
+        const pz = -FOOT_HALF_Z;
+        mTip.makeTranslation(0, 0, pz).multiply(mR.makeRotationX(-fall.phi)).multiply(mT.makeTranslation(0, 0, -pz));
+        // Abrollen: weiter nach hinten um den Kontaktpunkt unter dem Rücken
+        if (fall.roll !== 0) {
+          contactLocal.set(0, pose.hipY + 0.42, 0).applyMatrix4(mTip);
+          contactLocal.y = 0;
+          mRoll.makeTranslation(contactLocal.x, 0, contactLocal.z)
+            .multiply(mR.makeRotationX(-fall.roll))
+            .multiply(mT2.makeTranslation(-contactLocal.x, 0, -contactLocal.z));
+          mTip.premultiply(mRoll);
+        }
+        figure.matrix.copy(mYaw.makeRotationY(pose.yaw)).multiply(mTip);
+        figure.matrixWorldNeedsUpdate = true;
+      }
+
+      // ---------- Schwerpunkt + Fallhöhe (für Level 2) ----------
+      const comBall = new THREE.Mesh(new THREE.SphereGeometry(0.13, 20, 14), new THREE.MeshBasicMaterial({ color: COLORS.gold, depthTest: false }));
+      comBall.renderOrder = 10;
+      scene.add(comBall);
+      const dotMat = new THREE.MeshBasicMaterial({ color: 0xb98900, depthTest: false, transparent: true, opacity: 0.8 });
+      const dots = Array.from({ length: 14 }, () => {
+        const d = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), dotMat);
+        d.renderOrder = 9;
+        scene.add(d);
+        return d;
+      });
+      const comWorld = new THREE.Vector3();
+      let showHeight = false;
+      function updateCom() {
+        comWorld.set(0, comH(), 0).applyMatrix4(figure.matrix);
+        comBall.position.copy(comWorld);
+        dots.forEach((d, i) => {
+          d.visible = showHeight;
+          d.position.set(comWorld.x, comWorld.y * (1 - (i + 0.5) / dots.length), comWorld.z);
+        });
+      }
+
+      // ---------- Kamera ----------
+      let camDist = 10;
+      function resize() {
+        renderer.setSize(innerWidth, innerHeight, false);
+        camera.aspect = innerWidth / innerHeight;
+        camDist = THREE.MathUtils.clamp(Math.max(9.6, 8.6 / camera.aspect), 9.6, 17);
+        camera.updateProjectionMatrix();
+      }
+      addEventListener("resize", resize);
+      resize();
+      const toScreen = (v) => {
+        const p = v.clone().project(camera);
+        return { x: (p.x * 0.5 + 0.5) * innerWidth, y: (-p.y * 0.5 + 0.5) * innerHeight };
+      };
+
+      // ---------- Ton & Sprache ----------
+      let soundOn = true, actx = null;
+      const ensureAudio = () => {
+        if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+        if (actx.state === "suspended") actx.resume();
+      };
+      function tone(type, f0, f1, dur, vol) {
+        if (!soundOn || !actx) return;
+        const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+        o.type = type;
+        o.frequency.setValueAtTime(f0, t);
+        o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+        g.gain.setValueAtTime(vol, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        o.connect(g).connect(actx.destination);
+        o.start(t);
+        o.stop(t + dur);
+      }
+      function noise(dur, freq, vol, type = "lowpass") {
+        if (!soundOn || !actx) return;
+        const len = Math.floor(actx.sampleRate * dur), buf = actx.createBuffer(1, len, actx.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3;
+        const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+        src.buffer = buf;
+        f.type = type;
+        f.frequency.value = freq;
+        g.gain.value = vol;
+        src.connect(f).connect(g).connect(actx.destination);
+        src.start();
+      }
+      const sfx = {
+        whoosh: () => noise(0.35, 900, 0.12, "bandpass"),
+        thud: (e) => { tone("sine", 120, 40, 0.45, 0.25 + e * 0.35); noise(0.25, 300, 0.3 * e); },
+        plopp: () => tone("sine", 260, 120, 0.3, 0.25),
+        slap: () => noise(0.12, 2500, 0.5, "highpass"),
+        bonk: () => tone("square", 520, 180, 0.18, 0.1),
+        crack: () => noise(0.06, 3000, 0.35, "highpass"),
+        tick: () => tone("triangle", 660, 660, 0.12, 0.12),
+        ding: () => { tone("triangle", 880, 880, 0.35, 0.16); setTimeout(() => tone("triangle", 1320, 1320, 0.4, 0.12), 90); },
+      };
+      let voice = null;
+      const pickVoice = () => {
+        const vs = speechSynthesis.getVoices();
+        voice = vs.find((v) => v.lang === "de-DE" && /Anna|Petra|Helena|Google/.test(v.name)) || vs.find((v) => v.lang.startsWith("de")) || null;
+      };
+      if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+      function speak(text) {
+        if (!soundOn || !("speechSynthesis" in window)) return;
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text.replace(/[–=]/g, ","));
+        u.lang = "de-DE";
+        if (voice) u.voice = voice;
+        u.rate = 0.95;
+        u.pitch = 1.1;
+        speechSynthesis.speak(u);
+      }
+      const soundBtn = document.getElementById("sound");
+      soundBtn.addEventListener("click", () => {
+        soundOn = !soundOn;
+        soundBtn.textContent = soundOn ? "🔊" : "🔇";
+        if (!soundOn && "speechSynthesis" in window) speechSynthesis.cancel();
+      });
+
+      // ---------- UI ----------
+      const $ = (s) => document.querySelector(s);
+      const sayEl = $("#say"), actionBtn = $("#action"), card = $("#card"), countEl = $("#count");
+      const tagHead = $("#tagHead"), tagBack = $("#tagBack"), tagHand = $("#tagHand"), tagSlap = $("#tagSlap"), tagHeight = $("#tagHeight");
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      function say(text) {
+        gsap.killTweensOf(sayEl);
+        gsap.to(sayEl, {
+          y: -10, opacity: 0, duration: 0.15,
+          onComplete: () => {
+            sayEl.textContent = text;
+            gsap.fromTo(sayEl, { y: 16, opacity: 0, scale: 0.96 }, { y: 0, opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" });
+          },
+        });
+        speak(text);
+      }
+      function showAction(label, onClick) {
+        actionBtn.textContent = label;
+        actionBtn.onclick = () => { hideAction(); onClick(); };
+        actionBtn.style.pointerEvents = "auto";
+        gsap.fromTo(actionBtn, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(2)", delay: 0.3 });
+      }
+      function hideAction() {
+        actionBtn.style.pointerEvents = "none";
+        actionBtn.onclick = null;
+        gsap.to(actionBtn, { opacity: 0, y: 20, duration: 0.2 });
+      }
+      function showCard({ title = "", text = "", button, onClick, button2, onClick2, seal = false, sealIcon = "🤸", levels, topics = false }) {
+        const h1 = card.querySelector("h1");
+        h1.textContent = title;
+        h1.classList.toggle("long", title.length > 26);
+        card.querySelector("p").textContent = text;
+        card.querySelector(".seal").hidden = !seal;
+        card.querySelector(".seal").textContent = sealIcon;
+        card.querySelector(".topics").hidden = !topics;
+        const close = (fn) => () => {
+          ensureAudio();
+          card.style.pointerEvents = "none";
+          gsap.to(card, { opacity: 0, duration: 0.3, onComplete: fn });
+        };
+        const btn = card.querySelector(".btn.main"), alt = card.querySelector(".btn.alt");
+        btn.hidden = !button;
+        btn.textContent = button || "";
+        btn.onclick = close(onClick);
+        alt.hidden = !button2;
+        alt.textContent = button2 || "";
+        alt.onclick = close(onClick2);
+        const lv = card.querySelector(".levels");
+        lv.hidden = !levels;
+        lv.querySelectorAll("button").forEach((b) => (b.onclick = close(() => levels(+b.dataset.level))));
+        card.style.pointerEvents = "auto";
+        gsap.fromTo(card, { opacity: 0 }, { opacity: 1, duration: 0.35 });
+        gsap.fromTo(card.querySelector(".inner"), { y: 40, scale: 0.94 }, { y: 0, scale: 1, duration: 0.6, ease: "back.out(1.8)" });
+        speak([title, text].filter(Boolean).join(" "));
+      }
+      const starEls = [...document.querySelectorAll("#stars span")];
+      function setStars(n, pop = -1) {
+        starEls.forEach((s, i) => s.classList.toggle("on", i < n));
+        if (pop >= 0) gsap.fromTo(starEls[pop], { scale: 0.3, rotate: -90 }, { scale: 1, rotate: 0, duration: 0.6, ease: "back.out(3)" });
+      }
+      // Beschriftung kurz an einem Körperteil zeigen
+      const tagTargets = new Map();
+      function flashTag(el, obj, lift = 0.5) {
+        tagTargets.set(el, { obj, lift });
+        gsap.killTweensOf(el);
+        gsap.timeline()
+          .fromTo(el, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(3)" })
+          .to(el, { opacity: 0, duration: 0.4, delay: 1.8 });
+      }
+      function slapWave() {
+        wave.position.set(fall.contact.x, 0.02, fall.contact.z);
+        gsap.fromTo(wave.scale, { x: 0.5, y: 0.5, z: 0.5 }, { x: 3.4, y: 3.4, z: 3.4, duration: 0.7, ease: "power2.out" });
+        gsap.fromTo(wave.material, { opacity: 0.9 }, { opacity: 0, duration: 0.7 });
+      }
+
+      // Aua-Meter
+      const auaEl = $("#aua");
+      function showAua(v) {
+        gsap.to(auaEl, { opacity: 1, duration: 0.3 });
+        const face = v < 15 ? "😄" : v < 35 ? "🙂" : v < 60 ? "😣" : "😭";
+        auaEl.querySelector(".face").textContent = face;
+        const num = { n: 0 };
+        gsap.to(num, { n: v, duration: 0.8, ease: "power2.out", onUpdate: () => (auaEl.querySelector(".num").textContent = Math.round(num.n)) });
+        gsap.fromTo(auaEl.querySelector(".fill"), { height: "0%" }, { height: v + "%", duration: 0.8, ease: "power2.out" });
+        gsap.fromTo(auaEl.querySelector(".face"), { scale: 0.5 }, { scale: 1, duration: 0.6, ease: "back.out(3)" });
+      }
+      function hideAua() { gsap.to(auaEl, { opacity: 0, duration: 0.3 }); }
+
+      // Countdown „3 · 2 · 1 · Plumps!“
+      async function countdown() {
+        for (const n of ["3", "2", "1"]) {
+          countEl.textContent = n;
+          sfx.tick();
+          gsap.fromTo(countEl, { opacity: 1, scale: 1.4 }, { opacity: 0, scale: 0.8, duration: 0.85, ease: "power2.in" });
+          await wait(850);
+        }
+        countEl.textContent = "Plumps!";
+        gsap.fromTo(countEl, { opacity: 1, scale: 0.6 }, { opacity: 0, scale: 1.1, duration: 0.9, ease: "power2.out" });
+      }
+
+      // ---------- Fallschul-Knöpfe ----------
+      const moveEls = Object.fromEntries([...document.querySelectorAll(".move")].map((b) => [b.dataset.move, b]));
+      let movesOpen = false;   // darf gerade gedrückt werden
+      let onMove = null;
+      function setMoves(list, pulse = null) {
+        for (const [k, el] of Object.entries(moveEls)) {
+          el.classList.toggle("show", list.includes(k));
+          el.classList.remove("on");
+          el.classList.toggle("pulse", k === pulse);
+        }
+      }
+      for (const [k, el] of Object.entries(moveEls)) {
+        el.addEventListener("click", () => {
+          ensureAudio();
+          if (!movesOpen || fall.landed) return;
+          el.classList.remove("pulse");
+          doMove(k);
+          onMove?.(k);
+        });
+      }
+      function doMove(k) {
+        const el = moveEls[k];
+        if (el.classList.contains("on") && k !== "slap") return;
+        if (k === "squat") {
+          if (fall.active) return; // hinhocken geht nur vor dem Fall
+          pose.wTarget = SQUAT.w;
+          pose.tTarget = SQUAT.t;
+          gsap.to(body, { armFwd: 1, duration: 0.4 });
+        }
+        if (k === "chin") { fall.chin = true; gsap.to(body, { chin: 1, duration: 0.25 }); }
+        if (k === "round") { fall.round = true; gsap.to(body, { curl: 1, duration: 0.3 }); }
+        if (k === "slap") {
+          if (fall.slap !== "none") return;
+          fall.slap = fallProgress() >= SLAP_FROM ? "good" : "early";
+          gsap.to(body, { armOut: 1, armFwd: 0, duration: 0.12 });
+        }
+        if (k === "post") { fall.post = true; gsap.to(body, { armPost: 1, duration: 0.15 }); }
+        el.classList.add("on");
+        tone("triangle", 520, 780, 0.12, 0.1);
+      }
+
+      // ---------- Ein Fall (gemeinsamer Ablauf aller Level) ----------
+      // opts: { speed, countdown, surprise } → Promise mit dem Ergebnis der Landung
+      async function doFall({ speed = 1, count = true, surprise = false } = {}) {
+        fall.timeScale = speed;
+        movesOpen = true;
+        if (count) await countdown();
+        if (surprise) {
+          // Bo schubst ohne Vorwarnung
+          await wait(800 + Math.random() * 2200);
+          say("Hoppla!");
+        }
+        const result = await new Promise((resolve) => {
+          onLand = resolve;
+          startFall();
+        });
+        movesOpen = false;
+        return result;
+      }
+
+      // Erklär-Ansicht: Zeitlupe und Beschriftung
+      function slowFall(on) { fall.timeScale = on ? 0.3 : 1; }
+
+      // ---------- Die Level ----------
+      // Jedes Level: Probefall (ohne das Neue) → Frage → Zeitlupe → 3 Übungsfälle → Merksatz
+      const LEVELS = {
+        1: {
+          name: "Kinn zur Brust", icon: "🙇", moves: [], add: "chin",
+          intro: "Was passiert, wenn du nach hinten fällst?",
+          probe: "Der Kopf ist auf die Matte geknallt!",
+          question: "Wie schützt du deinen Kopf?",
+          explain: "Kinn zur Brust – dann bleibt der Kopf oben.",
+          practice: "Drück „Kinn“, bevor du landest!",
+          ok: (r) => r.head === 0,
+          fail: () => "Der Kopf! Drück früher auf „Kinn“.",
+          title: "Beim Fallen: Kinn zur Brust!",
+          task: "Üb mit deinem Trainer: Kinn zur Brust und langsam nach hinten rollen.",
+        },
+        2: {
+          name: "Mach dich klein", icon: "🧎", moves: ["chin"], add: "squat",
+          intro: "Ist hoch fallen und tief fallen gleich?",
+          probe: "Von ganz oben – das war hart!",
+          question: "Wie wird der Fall weicher?",
+          explain: "Je tiefer du schon bist, desto weniger Kraft hat der Fall.",
+          practice: "Erst hocken, dann Kinn – vor dem „Plumps“!",
+          ok: (r) => r.head === 0 && fall.squat,
+          fail: (r) => (r.head > 0 ? "Der Kopf! Kinn nicht vergessen." : "Zu hoch! Hock dich vor dem Plumps hin."),
+          title: "Erst klein machen, dann fallen!",
+          task: "Zeig deinem Trainer: tief in die Hocke, dann hinsetzen und abrollen.",
+          height: true,
+        },
+        3: {
+          name: "Rund wie ein Ball", icon: "🟠", moves: ["squat", "chin"], add: "round",
+          intro: "Was ist besser: flach wie ein Brett oder rund wie ein Ball?",
+          probe: "Flach wie ein Brett – BUMM!",
+          question: "Wie wird der Rücken zum Ball?",
+          explain: "Ein runder Rücken rollt ab – ein flacher knallt.",
+          practice: "Hock, Kinn und Rund – vor der Landung!",
+          ok: (r) => r.head === 0 && fall.round,
+          fail: (r) => (r.head > 0 ? "Der Kopf! Kinn nicht vergessen." : "Flach gelandet! Drück „Rund“."),
+          title: "Mach dich rund wie ein Ball!",
+          task: "Schaukel auf der Matte wie ein Ball – Kinn zur Brust, Knie zum Bauch.",
+        },
+        4: {
+          name: "Klatschen", icon: "👏", moves: ["squat", "chin", "round", "post"], add: "slap",
+          intro: "Was machst du mit deinen Armen?",
+          probe: "Mit der Hand abgestützt – das Handgelenk tut weh!",
+          question: "Wohin mit den Armen?",
+          explain: "Klatsch mit den Armen auf die Matte – kurz bevor der Rücken landet!",
+          practice: "Klatsch, wenn du fast unten bist – nie abstützen!",
+          ok: (r) => r.head === 0 && fall.slap === "good" && !fall.post,
+          fail: (r) => (fall.post ? "Nicht abstützen! Klatschen!" : fall.slap === "early" ? "Zu früh! Klatsch, wenn du fast unten bist." : r.head > 0 ? "Der Kopf! Kinn nicht vergessen." : "Vergiss das Klatschen nicht!"),
+          title: "Klatschen, nicht abstützen!",
+          task: "Üb mit deinem Trainer: Klatsch beim Abrollen mit beiden Armen auf die Matte.",
+          probePost: true,
+        },
+        5: {
+          name: "Alles zusammen", icon: "🤸", moves: ["squat", "chin", "round", "slap", "post"], add: null,
+          intro: "Bo schubst dich – aber wann, weißt du nicht!",
+          practice: "Pass auf – Bo schubst dich gleich!",
+          ok: (r) => r.total <= 15 && !fall.post,
+          fail: (r) => (fall.post ? "Nicht abstützen!" : r.head > 0 ? "Der Kopf! Kinn zur Brust!" : !fall.round ? "Mach dich rund!" : fall.slap !== "good" ? "Klatsch, wenn du fast unten bist!" : "Mach dich vorher klein!"),
+          title: "Klein, Kinn, rund, klatsch!",
+          task: "Zeig deinem Trainer deine beste Fallschule – zehnmal hintereinander!",
+        },
+      };
+
+      const flow = {
+        // Level-Auswahl (mit Themen-Umschalter Stehen ↔ Fallen)
+        start() {
+          resetAll();
+          showCard({
+            seal: true, title: "Fallschule", topics: true, text: "Welches Level übst du?",
+            levels: (n) => flow.level(n),
+          });
+        },
+
+        level(n) {
+          const L = LEVELS[n];
+          resetAll();
+          showCard({
+            seal: true, sealIcon: L.icon, title: `Level ${n}`, text: L.intro, button: "Los!",
+            onClick: () => (n === 5 ? flow.practice(n, 0) : flow.probe(n)),
+          });
+        },
+
+        // Probefall ohne das Neue – damit das Kind merkt, was fehlt
+        async probe(n) {
+          const L = LEVELS[n];
+          setMoves(L.moves);
+          say(n === 1 ? "Gleich fällst du nach hinten!" : "Gleich fällst du – so wie bisher!");
+          if (L.height) showHeight = true;
+          // Level 2 und 3: alte Knöpfe machen wir für den Probefall gleich selbst
+          const preset = async () => {
+            if (n >= 2) doMove("chin");
+            if (n === 4) { doMove("squat"); doMove("round"); }
+            if (L.probePost) { await wait(400); }
+          };
+          await preset();
+          if (L.probePost) {
+            // Level 4: der Reflex „abfangen mit der Hand“ – wir zeigen, was passiert
+            onMove = null;
+            setTimeout(() => doMove("post"), 3200);
+          }
+          if (n === 3) doMove("squat");
+          const r = await doFall({ speed: 0.8 });
+          say(L.probe);
+          await wait(2200);
+          showCard({ title: L.question, button: "Zeig's mir", onClick: () => flow.explain(n, r) });
+        },
+
+        // Zeitlupe mit dem richtigen Neuen – und Vergleich im Aua-Meter
+        async explain(n, probeResult) {
+          const L = LEVELS[n];
+          await standUp();
+          setMoves([...L.moves.filter((m) => m !== "post"), L.add]);
+          say(L.explain);
+          if (n === 2) { doMove("chin"); await wait(300); doMove("squat"); }
+          else if (n === 1) doMove("chin");
+          else if (n === 3) { doMove("squat"); doMove("chin"); doMove("round"); }
+          else if (n === 4) { doMove("squat"); doMove("chin"); doMove("round"); }
+          await wait(1400);
+          movesOpen = false;
+          slowFall(true);
+          if (n === 4) {
+            // Klatschen kommt in der Zeitlupe genau im richtigen Moment
+            const id = setInterval(() => { if (fallProgress() >= 0.75) { clearInterval(id); doMove("slap"); } }, 16);
+          }
+          const r = await new Promise((resolve) => { onLand = resolve; startFall(); });
+          slowFall(false);
+          await wait(800);
+          say(`Aua vorher: ${probeResult.total} – jetzt: ${r.total}!`);
+          showHeight = false;
+          await wait(1800);
+          showAction("Jetzt du!", async () => { await standUp(); flow.practice(n, 0); });
+        },
+
+        // Drei Übungsfälle, jeder etwas schneller
+        async practice(n, round, stars = 0) {
+          const L = LEVELS[n];
+          const speeds = n === 5 ? [0.8, 0.9, 1] : [0.55, 0.75, 1];
+          setMoves(L.add ? [...L.moves, L.add] : L.moves, round === 0 ? L.add : null);
+          gsap.to("#stars", { opacity: 1, duration: 0.3 });
+          setStars(stars);
+          say(round === 0 ? L.practice : ["", "Schneller!", "Ganz schnell!"][round]);
+          const r = await doFall({ speed: speeds[round], count: n !== 5, surprise: n === 5 });
+          const good = L.ok(r);
+          await wait(700);
+          if (good) {
+            stars++;
+            setStars(stars, stars - 1);
+            sfx.ding();
+            say(r.total <= 10 ? "Super weich gelandet!" : "Gut gefallen!");
+          } else {
+            say(L.fail(r));
+          }
+          await wait(2300);
+          await standUp();
+          if (round < 2) flow.practice(n, round + 1, stars);
+          else flow.end(n, stars);
+        },
+
+        end(n, stars) {
+          const L = LEVELS[n];
+          gsap.to("#stars", { opacity: 0, duration: 0.3 });
+          setMoves([]);
+          showCard({
+            seal: true, sealIcon: L.icon, title: L.title, text: L.task,
+            button: n < 5 ? `Level ${n + 1}!` : "Nochmal",
+            onClick: () => flow.level(n < 5 ? n + 1 : 5),
+            button2: stars < 2 ? "Nochmal üben" : "Level wählen",
+            onClick2: stars < 2 ? () => flow.level(n) : flow.start,
+          });
+        },
+      };
+
+      function resetAll() {
+        gsap.killTweensOf(fall);
+        Object.assign(fall, { active: false, phi: 0, w: 0, roll: 0, landed: false, chin: false, squat: false, round: false, slap: "none", post: false, timeScale: 1 });
+        Object.assign(body, { chin: 0, curl: 0, armOut: 0, armPost: 0, armFwd: 0 });
+        Object.assign(pose, { w: STAND.w, t: STAND.t, wTarget: STAND.w, tTarget: STAND.t });
+        dizzy.visible = false;
+        eyes.forEach((el) => el.scale.set(1, 1, 1));
+        movesOpen = false;
+        onLand = null;
+        showHeight = false;
+        setMoves([]);
+        hideAua();
+        hideAction();
+        gsap.to("#stars", { opacity: 0, duration: 0.2 });
+      }
+      $("#levelBtn").addEventListener("click", () => { ensureAudio(); flow.start(); });
+
+      // ---------- Animationsschleife ----------
+      const clock = new THREE.Clock();
+      function tick() {
+        const dt = Math.min(clock.getDelta(), 1 / 30);
+        // Haltung nur ändern, solange er steht
+        if (!fall.active) {
+          const k = 1 - Math.exp(-dt * 10);
+          pose.w += (pose.wTarget - pose.w) * k;
+          pose.t += (pose.tTarget - pose.t) * k;
+        }
+        applyPose();
+        applyBody();
+        stepFall(dt * fall.timeScale);
+        if (dizzy.visible) dizzy.rotation.y += dt * 4;
+        updateFigureMatrix();
+        updateCom();
+
+        // Kamera: folgt beim Fallen ein Stück nach rechts, wackelt beim harten Aufprall
+        const targetX = fall.active || fall.landed ? comWorld.x * 0.5 : 0;
+        camLook.x += (targetX - camLook.x) * (1 - Math.exp(-dt * 2.5));
+        shake.amp *= Math.exp(-dt * 7);
+        camera.position.set(camLook.x + (Math.random() - 0.5) * shake.amp, 0.4 * camDist + (Math.random() - 0.5) * shake.amp, camDist);
+        camera.lookAt(camLook);
+
+        // Beschriftungen an Körperteile heften
+        figure.updateMatrixWorld(true);
+        for (const [el, { obj, lift }] of tagTargets) {
+          obj.getWorldPosition(tmpA);
+          tmpA.y += lift;
+          const p = toScreen(tmpA);
+          el.style.left = p.x + "px";
+          el.style.top = p.y + "px";
+        }
+        if (showHeight) {
+          const p = toScreen(tmpB.set(comWorld.x, comWorld.y * 0.5, comWorld.z));
+          tagHeight.style.left = p.x + 90 + "px";
+          tagHeight.style.top = p.y + "px";
+          tagHeight.style.opacity = 1;
+        } else tagHeight.style.opacity = 0;
+        comBall.visible = showHeight;
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(tick);
+      }
+      tick();
+      flow.start();
+
+      // Zum Testen in der Konsole
+      window.fallschule = { fall, pose, body, flow, doMove, LEVELS, startFall, standUp };
+    </script>
+  </body>
+</html>
