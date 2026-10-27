@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>The Tap</title>
+    <meta name="description" content="One moment in Brazilian Jiu-Jitsu: the tap. Leave your ego on the mat." />
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;900&display=swap" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/",
+          "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/index.js",
+          "gsap/": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/"
+        }
+      }
+    </script>
+    <style>
+      /* Palette laut Briefing: Tiefschwarz, Mattenweiß, BJJ-Lila */
+      :root {
+        --black: #0a0a0a;
+        --mat: #edebe6;
+        --purple: #6b2fbf;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: var(--black);
+        color: var(--mat);
+        font-family: "Inter Tight", system-ui, sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+        touch-action: manipulation;
+      }
+
+      /* Die Bühne: im Normalfall vollflächig, im Record-Modus fix 1080×1350 */
+      .stage {
+        position: fixed;
+        inset: 0;
+        container-type: size;
+        overflow: hidden;
+        cursor: pointer;
+        background: var(--black);
+      }
+
+      canvas { display: block; width: 100%; height: 100%; }
+
+      /* Das eine Wort. Größe hängt an der Bühne, nicht am Fenster (cqw/cqh). */
+      .word {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 13cqh;
+        margin: 0;
+        text-align: center;
+        font-weight: 900;
+        font-size: min(21cqw, 15cqh);
+        line-height: 1.04;
+        letter-spacing: -0.045em;
+        visibility: hidden;
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      /* SplitText legt eine Masken-Zeile an, die Buchstaben steigen von unten hinein */
+      .word div { will-change: transform; }
+
+      .tagline, .credit {
+        position: absolute;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        pointer-events: none;
+        opacity: 0;
+      }
+      .tagline { bottom: 15cqh; font-size: min(4.6cqw, 3.4cqh); }
+      /* Letzter Frame im Record-Modus: oben im Schwarz, nicht auf den Partikeln */
+      .credit { top: 24cqh; font-size: min(3.6cqw, 2.6cqh); color: rgba(237, 235, 230, 0.6); }
+
+      .ui {
+        position: fixed;
+        bottom: max(16px, env(safe-area-inset-bottom));
+        display: flex;
+        gap: 18px;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(237, 235, 230, 0.4);
+        z-index: 2;
+      }
+      .ui.left { left: 16px; }
+      .ui.right { right: 16px; }
+      .ui button {
+        all: unset;
+        cursor: pointer;
+        padding: 6px 0;
+      }
+      .ui button:hover, .ui button:focus-visible { color: var(--mat); }
+
+      /* Record-Modus: Bühne exakt 1080×1350, per JS ins Fenster skaliert */
+      body.record .stage {
+        inset: auto;
+        left: 50%;
+        top: 50%;
+        width: 1080px;
+        height: 1350px;
+        transform-origin: 50% 50%;
+        cursor: none;
+      }
+      body.record .ui { display: none; }
+    </style>
+  </head>
+  <body>
+    <main class="stage" id="stage" aria-label="The Tap. Tap anywhere.">
+      <canvas id="scene"></canvas>
+      <h1 class="word" id="word">Tap.</h1>
+      <p class="tagline" id="tagline">Leave your ego on the mat.</p>
+      <p class="credit" id="credit">madebymaga.de</p>
+    </main>
+
+    <div class="ui left"><span>R — Record 12 s</span></div>
+    <div class="ui right"><button id="mute" type="button" aria-pressed="false">Sound on</button></div>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
