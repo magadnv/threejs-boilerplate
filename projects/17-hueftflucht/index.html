@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="description" content="Hüftflucht – Kinder lernen den Shrimp: Rahmen mit geraden Armen, Fuß aufstellen, Hüfte weg, Knie rein." />
+    <title>Hüftflucht</title>
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js"
+        }
+      }
+    </script>
+    <style>
+      /* ---------- Farben & Grundlagen (wie die anderen Kinder-Themen) ---------- */
+      :root {
+        --bg: #fff3e3; --ink: #2b1b17; --red: #cf1830; --white: #ffffff;
+        --ok: #1db954; --out: #e5243b; --gold: #ffd23f; --soft: #e7d3bd;
+        --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body {
+        margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
+        font-family: "Fredoka", system-ui, sans-serif; user-select: none; -webkit-user-select: none;
+        touch-action: none; overscroll-behavior: none;
+      }
+      canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      button { font-family: inherit; cursor: pointer; border: 0; }
+
+      .modes { position: fixed; left: 50%; top: calc(12px + var(--safe-top)); transform: translateX(-50%); z-index: 6; display: flex; padding: 5px; border-radius: 999px; background: var(--white); box-shadow: 0 3px 0 var(--soft); }
+      .modes a { padding: 8px 14px; border-radius: 999px; font-size: 17px; font-weight: 600; color: #8a6a55; text-decoration: none; white-space: nowrap; }
+      .modes a[aria-current="page"] { background: var(--red); color: var(--white); }
+
+      #say { position: fixed; left: 16px; right: 16px; top: calc(76px + var(--safe-top)); text-align: center; font-weight: 700; line-height: 1.1; font-size: clamp(28px, 6vw, 52px); pointer-events: none; text-wrap: balance; }
+      #stars { position: fixed; left: 50%; top: calc(76px + var(--safe-top) + clamp(40px, 8vw, 70px)); transform: translateX(-50%); display: flex; gap: 10px; font-size: clamp(30px, 6vw, 44px); pointer-events: none; opacity: 0; }
+      #stars span { color: var(--soft); display: inline-block; }
+      #stars span.on { color: var(--gold); text-shadow: 0 2px 0 #c99a00; }
+
+      .btn { background: var(--red); color: var(--white); font-weight: 700; font-size: clamp(24px, 4.5vw, 34px); padding: 18px 44px; border-radius: 999px; box-shadow: 0 6px 0 #8f0f20, 0 14px 30px rgba(207, 24, 48, 0.3); transition: transform 0.12s; }
+      .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #8f0f20; }
+      #action { position: fixed; left: 50%; bottom: calc(28px + var(--safe-bottom)); transform: translateX(-50%); opacity: 0; pointer-events: none; z-index: 3; }
+      .round { position: fixed; top: calc(14px + var(--safe-top)); height: 52px; border-radius: 999px; background: var(--white); box-shadow: 0 3px 0 var(--soft); z-index: 5; font-size: 18px; font-weight: 700; color: var(--ink); }
+      #sound { right: calc(14px + env(safe-area-inset-right, 0px)); width: 52px; font-size: 24px; }
+      #levelBtn { left: calc(14px + env(safe-area-inset-left, 0px)); padding: 0 18px; }
+
+      #card { position: fixed; inset: 0; display: grid; place-items: center; z-index: 4; background: rgba(255, 243, 227, 0.78); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); opacity: 0; pointer-events: none; }
+      #card .inner { text-align: center; padding: 16px; max-width: 980px; }
+      #card h1 { margin: 0 0 10px; font-weight: 700; line-height: 1; white-space: pre-line; font-size: clamp(44px, 10vw, 96px); color: var(--red); text-wrap: balance; }
+      #card h1.long { font-size: clamp(34px, 6.4vw, 68px); }
+      #card p { margin: 0 0 30px; font-weight: 600; line-height: 1.15; font-size: clamp(24px, 4.6vw, 40px); text-wrap: balance; }
+      #card .seal { width: 96px; height: 96px; margin: 0 auto 18px; border-radius: 50%; border: 6px solid var(--red); display: grid; place-items: center; font-size: 48px; background: var(--white); }
+      #card .seal[hidden], #card .btn[hidden], #card .levels[hidden], #card .topics[hidden] { display: none; }
+      #card .btn.alt { background: var(--white); color: var(--red); box-shadow: 0 6px 0 var(--soft); margin-left: 12px; }
+      #card .levels { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+      #card .levels button { width: min(172px, 40vw); padding: 20px 10px; border-radius: 28px; background: var(--white); box-shadow: 0 6px 0 var(--soft); color: var(--ink); }
+      #card .levels button b { display: block; font-size: clamp(22px, 4vw, 30px); color: var(--red); }
+      #card .levels button span { font-size: clamp(16px, 2.6vw, 20px); font-weight: 600; }
+      #card .topics { display: flex; gap: 10px; justify-content: center; margin: -6px 0 22px; flex-wrap: wrap; }
+      #card .topics a, #card .topics span { padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: 19px; text-decoration: none; background: var(--white); color: #8a6a55; box-shadow: 0 3px 0 var(--soft); }
+      #card .topics span { background: var(--red); color: var(--white); box-shadow: none; }
+
+      /* ---------- Shrimp-Knöpfe ---------- */
+      #moves { position: fixed; left: 50%; bottom: calc(22px + var(--safe-bottom)); transform: translateX(-50%); display: flex; gap: 10px; z-index: 3; }
+      .move { width: clamp(84px, 17vw, 124px); padding: 12px 6px 10px; border-radius: 24px; background: var(--white); box-shadow: 0 6px 0 var(--soft); color: var(--ink); text-align: center; display: none; }
+      .move.show { display: block; }
+      .move i { display: block; font-style: normal; font-size: clamp(30px, 6vw, 42px); line-height: 1.1; }
+      .move b { display: block; font-size: clamp(15px, 2.8vw, 20px); }
+      .move.on { background: var(--ok); color: var(--white); box-shadow: 0 6px 0 #138a3e; }
+      .move:active { transform: translateY(4px); }
+      .pulse { animation: pulse 0.9s ease-in-out infinite; }
+      @keyframes pulse { 50% { transform: scale(1.12); } }
+
+      /* ---------- Kraft-Meter ---------- */
+      #kraft { position: fixed; right: calc(20px + env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); width: 74px; text-align: center; opacity: 0; pointer-events: none; z-index: 2; }
+      #kraft .face { font-size: 44px; line-height: 1; margin-bottom: 8px; }
+      #kraft .bar { position: relative; height: min(260px, 38vh); border-radius: 999px; background: var(--white); box-shadow: inset 0 3px 0 #ead8c4; overflow: hidden; margin: 0 auto; width: 34px; }
+      #kraft .fill { position: absolute; left: 0; right: 0; bottom: 0; height: 100%; background: var(--ok); }
+      #kraft .lbl { font-weight: 700; font-size: 18px; margin-top: 8px; }
+
+      #count { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 2; font-weight: 700; font-size: clamp(90px, 22vw, 200px); color: var(--red); opacity: 0; text-shadow: 0 6px 0 rgba(143, 15, 32, 0.25); }
+      .tag { position: fixed; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 22px; background: var(--white); pointer-events: none; opacity: 0; transform: translate(-50%, -50%); box-shadow: 0 3px 0 rgba(0,0,0,0.08); white-space: nowrap; z-index: 2; }
+      .tag.bad { background: var(--out); color: var(--white); }
+      .tag.good { background: var(--ok); color: var(--white); }
+      @media (max-width: 600px) { #kraft { right: 8px; width: 60px; } }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <nav class="modes" aria-label="Altersstufe">
+      <a href="../12-fels/" aria-current="page">Kinder</a>
+      <a href="../13-kuzushi/">Teens</a>
+      <a href="../14-drittes-bein/">Erwachsene</a>
+    </nav>
+
+    <div id="say" aria-live="polite"></div>
+    <div id="stars" aria-hidden="true"><span>★</span><span>★</span><span>★</span></div>
+    <button id="sound" class="round" aria-label="Ton an oder aus">🔊</button>
+    <button id="levelBtn" class="round" aria-label="Level wählen">☰ Level</button>
+    <button id="action" class="btn"></button>
+    <div id="count"></div>
+
+    <div id="kraft" aria-hidden="true"><div class="face">💪</div><div class="bar"><div class="fill"></div></div><div class="lbl">Kraft</div></div>
+
+    <div id="moves">
+      <button class="move" data-move="frame"><i>💪</i><b>Rahmen</b></button>
+      <button class="move" data-move="foot"><i>🦶</i><b>Fuß</b></button>
+      <button class="move" data-move="shrimp"><i>🦐</i><b>Hüfte weg</b></button>
+      <button class="move" data-move="knee"><i>🦵</i><b>Knie rein</b></button>
+    </div>
+
+    <div id="tagGap" class="tag good">Platz!</div>
+    <div id="tagUff" class="tag bad">Uff!</div>
+    <div id="tagOut" class="tag good">Du bist raus!</div>
+
+    <div id="card"><div class="inner">
+      <div class="seal" hidden>🦐</div>
+      <h1></h1>
+      <div class="topics" hidden><a href="../12-fels/">🪨 Stehen</a><a href="../15-fallschule/">🤸 Fallen</a><a href="../16-bruecke/">🌉 Unten raus</a><span>🦐 Hüfte raus</span></div>
+      <p></p>
+      <div class="levels" hidden>
+        <button data-level="1"><b>Level 1</b><span>Rahmen</span></button>
+        <button data-level="2"><b>Level 2</b><span>Hüfte weg</span></button>
+        <button data-level="3"><b>Level 3</b><span>Fuß auf die Matte</span></button>
+        <button data-level="4"><b>Level 4</b><span>Knie rein</span></button>
+        <button data-level="5"><b>Level 5</b><span>Alles zusammen</span></button>
+      </div>
+      <button class="btn main"></button><button class="btn alt" hidden></button>
+    </div></div>
+
+    <script type="module">
+      import * as THREE from "three";
+
+      /* =====================================================================
+         HÜFTFLUCHT · Kinder (Thema 4 nach Stehen, Fallen, Brücke)
+         Bo sitzt auf dir. So machst du Platz: Rahmen, Fuß, Hüfte weg, Knie rein.
+
+         Physik:
+         1) Rahmen: Ein Arm hält Bos Gewicht. Am Ellbogen wirkt das Drehmoment
+              τ = F · Hebel · sin(Beugung)
+            Gestreckt (10°) tragen die Knochen fast alles, gebeugt (90°) müssen die
+            Muskeln alles halten → die Kraft ist nach 2 s statt nach 11 s leer.
+         2) Hüfte weg: Dein Fuß schiebt die Hüfte mit Tempo v₀ weg, die Matte bremst
+            (Reibung a = 3 m/s²) → Weg d = v₀² / 2a. Fuß nah am Po: v₀ = 1.8 → 0.54,
+            Fuß weit weg: v₀ = 0.9 → 0.14.
+         3) Bo rutscht hinterher (1 m/s nach 0.15 s) – außer dein Rahmen blockiert ihn,
+            dann erst nach 1.2 s (Level 5: 0.6 s, schneller).
+         4) Knie rein: geht nur, wenn die Lücke ≥ 0.32 ist (so dick ist dein Knie).
+         ===================================================================== */
+
+      // ---------- Einstellungen ----------
+      const KNEE_GAP = 0.32;
+      const FRICTION = 3;
+      const V_CLOSE = 1.8, V_FAR = 0.9;
+      const REACT = 0.15;
+      const DRAIN = 50;                   // Kraft pro Sekunde bei 90° Beugung
+      const BEND_STRAIGHT = 10, BEND_PUSH = 90;
+      const B_KNEE = 0.55;
+      const COLORS = { bg: 0xfff3e3, mat: 0xf9b233, matBorder: 0xcf1830, gi: 0xffffff, kid: 0x14b8a6, kidBelt: 0xff6b00, bo: 0xff8a3d, boBelt: 0x2bb673, ok: 0x1db954, out: 0xe5243b };
+
+      // ---------- Renderer, Szene, Kamera ----------
+      const canvas = document.getElementById("scene");
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(COLORS.bg);
+      scene.fog = new THREE.Fog(COLORS.bg, 16, 32);
+      const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+      const camLook = new THREE.Vector3(-0.2, 0.7, -0.1);
+
+      scene.add(new THREE.HemisphereLight(0xfff8ee, 0xf2a65a, 1.6));
+      const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+      sun.position.set(-4, 9, 5);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(1024, 1024);
+      Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 1, far: 25 });
+      sun.shadow.radius = 6;
+      scene.add(sun);
+      const mat = new THREE.Mesh(new THREE.BoxGeometry(14, 0.3, 12), new THREE.MeshStandardMaterial({ color: COLORS.matBorder, roughness: 0.9 }));
+      mat.position.y = -0.15;
+      mat.receiveShadow = true;
+      scene.add(mat);
+      const matInner = new THREE.Mesh(new THREE.PlaneGeometry(12, 10), new THREE.MeshStandardMaterial({ color: COLORS.mat, roughness: 0.95 }));
+      matInner.rotation.x = -Math.PI / 2;
+      matInner.position.y = 0.001;
+      matInner.receiveShadow = true;
+      scene.add(matInner);
+
+      // Die Lücke zwischen deiner Hüfte und Bos Knie – grün, sobald dein Knie reinpasst
+      const gapMat = new THREE.MeshBasicMaterial({ color: COLORS.out, transparent: true, opacity: 0.55, depthWrite: false });
+      const gapZone = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), gapMat);
+      gapZone.rotation.x = -Math.PI / 2;
+      gapZone.position.set(0, 0.012, 0.05);
+      gapZone.visible = false;
+      scene.add(gapZone);
+
+      // ---------- Bausteine ----------
+      const toon = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.55, flatShading: true });
+      const mGi = toon(COLORS.gi), mKid = toon(COLORS.kid), mKidBelt = toon(COLORS.kidBelt), mBo = toon(COLORS.bo), mBoBelt = toon(COLORS.boBelt);
+      const mDark = new THREE.MeshBasicMaterial({ color: 0x1a1a1a }), mCheek = new THREE.MeshBasicMaterial({ color: 0xff8fa3 });
+      const ico = (r, d = 1) => new THREE.IcosahedronGeometry(r, d);
+      const shadowy = (m) => ((m.castShadow = true), m);
+      const limbGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
+      const UP = new THREE.Vector3(0, 1, 0), tmpV = new THREE.Vector3();
+      function limb(m, r) { const x = shadowy(new THREE.Mesh(limbGeo, m)); x.userData.r = r; return x; }
+      function placeLimb(mesh, a, b) {
+        mesh.position.copy(a).add(b).multiplyScalar(0.5);
+        tmpV.copy(b).sub(a);
+        mesh.scale.set(mesh.userData.r, tmpV.length(), mesh.userData.r);
+        mesh.quaternion.setFromUnitVectors(UP, tmpV.normalize());
+      }
+      function face(g, m, r) {
+        g.add(shadowy(new THREE.Mesh(ico(r, 2), m)));
+        for (const s of [-1, 1]) {
+          const eye = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), mDark);
+          eye.position.set(s * 0.13, 0.05, r * 0.92);
+          g.add(eye);
+          const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.055, 12), mCheek);
+          cheek.position.set(s * 0.23, -0.07, r * 0.82);
+          cheek.rotation.y = s * 0.55;
+          g.add(cheek);
+        }
+        const smile = new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.016, 6, 12, Math.PI), mDark);
+        smile.position.set(0, -0.07, r * 0.95);
+        smile.rotation.z = Math.PI;
+        g.add(smile);
+      }
+
+      /* ---------- Du: liegst auf dem Rücken, Kopf zur Kamera ----------
+         kid.x: seitlich weg (Shrimp, nach links = negativ), kid.side: auf die Seite gedreht,
+         kid.up: Hände an Bo, kid.frame: 0 = gebeugt drücken, 1 = gestreckter Rahmen,
+         kid.feet: 1 = Fuß nah am Po, kid.kneeIn: rechtes Knie in der Lücke, kid.squash: Bo drückt dich platt */
+      const kid = { x: 0, side: 0, up: 0, frame: 0, feet: 1, kneeIn: 0, squash: 0 };
+      const kidRoot = new THREE.Group();
+      scene.add(kidRoot);
+      const kidBody = new THREE.Group();
+      kidRoot.add(kidBody);
+      const kidTorso = shadowy(new THREE.Mesh(ico(1, 2), mGi));
+      kidBody.add(kidTorso);
+      const kidBeltM = shadowy(new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.06, 6, 18), mKidBelt));
+      kidBeltM.scale.set(1.05, 1, 0.6);
+      kidBeltM.position.set(0, 0, -0.35);
+      kidBeltM.rotation.set(Math.PI / 2, 0, 0);
+      kidBody.add(kidBeltM);
+      const kidHead = new THREE.Group();
+      face(kidHead, mKid, 0.38);
+      kidHead.rotation.x = -Math.PI / 2 + 0.25;
+      kidHead.position.set(0, 0.05, 0.95);
+      kidBody.add(kidHead);
+      const kidArms = [-1, 1].map((s) => ({ s, upper: limb(mGi, 0.1), fore: limb(mGi, 0.09), hand: shadowy(new THREE.Mesh(ico(0.11, 1), mKid)) }));
+      const kidLegs = [-1, 1].map((s) => ({ s, thigh: limb(mGi, 0.13), shin: limb(mGi, 0.11), knee: shadowy(new THREE.Mesh(ico(0.13, 1), mGi)), foot: shadowy(new THREE.Mesh(ico(1, 1), mKid)) }));
+      kidArms.forEach((a) => kidRoot.add(a.upper, a.fore, a.hand));
+      kidLegs.forEach((L) => { L.foot.scale.set(0.13, 0.09, 0.24); kidRoot.add(L.thigh, L.shin, L.knee, L.foot); });
+
+      /* ---------- Bo: kniet auf dir ---------- */
+      const bo = { x: 0, lean: 0, hipY: 0.95 };
+      const boRoot = new THREE.Group();
+      boRoot.position.z = 0.15;
+      scene.add(boRoot);
+      const boUpper = new THREE.Group();
+      boRoot.add(boUpper);
+      const boTorso = shadowy(new THREE.Mesh(ico(1, 2), mGi));
+      boTorso.scale.set(0.58, 0.6, 0.46);
+      boTorso.position.y = 0.42;
+      boUpper.add(boTorso);
+      const boBeltM = shadowy(new THREE.Mesh(new THREE.TorusGeometry(0.53, 0.07, 6, 18), mBoBelt));
+      boBeltM.rotation.x = Math.PI / 2;
+      boBeltM.scale.set(1, 0.82, 1);
+      boBeltM.position.y = 0.18;
+      boUpper.add(boBeltM);
+      const boHead = new THREE.Group();
+      boHead.position.y = 1.15;
+      face(boHead, mBo, 0.4);
+      boUpper.add(boHead);
+      // Ziel für deinen Rahmen: Bos Hüfte (links/rechts)
+      const boHipAnchors = [-1, 1].map((s) => { const o = new THREE.Object3D(); o.position.set(s * 0.36, 0.08, 0.12); boUpper.add(o); return o; });
+      const boArms = [-1, 1].map((s) => ({ s, upper: limb(mGi, 0.11), lower: limb(mGi, 0.1), hand: shadowy(new THREE.Mesh(ico(0.12, 1), mBo)) }));
+      const boLegs = [-1, 1].map((s) => ({ s, thigh: limb(mGi, 0.15), shin: limb(mGi, 0.13), knee: shadowy(new THREE.Mesh(ico(0.15, 1), mGi)), foot: shadowy(new THREE.Mesh(ico(1, 1), mBo)) }));
+      boArms.forEach((a) => boRoot.add(a.upper, a.lower, a.hand));
+      boLegs.forEach((L) => { L.foot.scale.set(0.13, 0.09, 0.22); boRoot.add(L.thigh, L.shin, L.knee, L.foot); });
+
+      const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3(), vD = new THREE.Vector3();
+      function applyBo() {
+        boRoot.position.x = bo.x;
+        // Druck: Bo lehnt sich auf dich, die Hüfte sinkt
+        const hip = bo.hipY - bo.lean * 0.22;
+        boUpper.position.y = hip;
+        boUpper.rotation.x = bo.lean * 0.55;
+        for (const L of boLegs) {
+          const h = vA.set(L.s * 0.22, hip, 0);
+          const knee = vB.set(L.s * B_KNEE, 0.13, 0.05), foot = vC.set(L.s * 0.45, 0.08, -0.75);
+          placeLimb(L.thigh, h, knee);
+          placeLimb(L.shin, knee, foot);
+          L.knee.position.copy(knee);
+          L.foot.position.copy(foot);
+        }
+        for (const a of boArms) {
+          // Hände auf deiner Brust – beim Druck weiter vorne neben deinem Kopf
+          const sh = vA.set(a.s * 0.5, hip + 0.72 - bo.lean * 0.1, 0.05 + bo.lean * 0.35);
+          const hand = vB.set(a.s * (0.28 + bo.lean * 0.3), hip + 0.05 - bo.lean * 0.85, 0.45 + bo.lean * 0.55);
+          hand.y = Math.max(0.1, hand.y);
+          const elbow = vC.copy(sh).lerp(hand, 0.5).add(vD.set(a.s * 0.18, 0.05, -0.05));
+          placeLimb(a.upper, sh, elbow);
+          placeLimb(a.lower, elbow, hand);
+          a.hand.position.copy(hand);
+        }
+      }
+
+      function applyKid() {
+        kidRoot.position.x = kid.x;
+        const hip = 0.32;
+        kidBody.position.set(0, hip, 0.35);
+        kidBody.rotation.set(-0.08, 0, kid.side * 0.6); // Shrimp: auf die Seite drehen
+        kidTorso.scale.set(0.55, 0.3 - kid.squash * 0.08, 0.62);
+        boRoot.updateMatrixWorld(true);
+        // Arme: liegen, drücken gebeugt oder Rahmen gestreckt an Bos Hüfte
+        for (const a of kidArms) {
+          const sh = vA.set(a.s * 0.5, hip + 0.08, 0.85);
+          const rest = vB.set(a.s * 0.95, 0.1, 0.6);
+          boHipAnchors[a.s > 0 ? 1 : 0].getWorldPosition(vC);
+          vC.x -= kid.x; // in deinen Rahmen
+          const target = vD.copy(rest).lerp(vC, kid.up);
+          // gebeugt: Ellbogen weit raus; gestreckt: Ellbogen auf der Linie
+          const elbow = sh.clone().lerp(target, 0.5).add(new THREE.Vector3(a.s * 0.32 * (1 - kid.frame) * kid.up, 0.25 * (1 - kid.frame) * kid.up, 0));
+          // gebeugter Arm ist kürzer: Hand näher an der Schulter
+          const hand = target.clone().lerp(sh, 0.25 * (1 - kid.frame) * kid.up);
+          placeLimb(a.upper, sh, elbow);
+          placeLimb(a.fore, elbow, hand);
+          a.hand.position.copy(hand);
+        }
+        // Beine: Fuß nah am Po oder weit weg; rechtes Knie schiebt sich in die Lücke
+        const footZ = THREE.MathUtils.lerp(-1.55, -0.95, kid.feet);
+        for (const L of kidLegs) {
+          const hipJ = vA.set(L.s * 0.25, hip - 0.05, -0.2);
+          let foot = vB.set(L.s * 0.45, 0.1, footZ);
+          if (L.s > 0 && kid.kneeIn > 0) {
+            // Knie rein: Unterschenkel quer unter Bos Knie
+            const gapX = bo.x - kid.x + 0.42;
+            foot = foot.clone().lerp(new THREE.Vector3(gapX + 0.15, 0.12, 0.35), kid.kneeIn);
+          }
+          const mid = vC.copy(hipJ).add(foot).multiplyScalar(0.5);
+          const d = hipJ.distanceTo(foot);
+          const kneeUp = new THREE.Vector3(L.s * 0.1, 1, 0).normalize().multiplyScalar(Math.sqrt(Math.max(0.02, 0.78 * 0.78 - (d / 2) ** 2)));
+          const knee = mid.clone().add(kneeUp);
+          if (L.s > 0 && kid.kneeIn > 0) knee.lerp(new THREE.Vector3(bo.x - kid.x + 0.45, 0.32, 0.0), kid.kneeIn);
+          placeLimb(L.thigh, hipJ, knee);
+          placeLimb(L.shin, knee, foot);
+          L.knee.position.copy(knee);
+          L.foot.position.copy(foot);
+        }
+      }
+
+      // ---------- Physik: Kraft im Rahmen + Shrimp ----------
+      const sim = {
+        timeScale: 1, pressure: false, kraft: 100, collapsed: false,
+        shrimp: false, t: 0, v: 0, kidD: 0, boD: 0, hold: 1.2, vB: 1.0, maxGap: 0, gapOpenAt: null, done: false,
+      };
+      const gap = () => Math.max(0, sim.kidD - sim.boD);
+      function stepSim(dt) {
+        // Rahmen: Kraft sinkt mit sin(Ellbogenbeugung) – gestreckt fast gar nicht
+        if (sim.pressure && !sim.collapsed) {
+          const bend = kid.up > 0.5 ? (kid.frame > 0.5 ? BEND_STRAIGHT : BEND_PUSH) : BEND_PUSH;
+          sim.kraft = Math.max(0, sim.kraft - DRAIN * Math.sin((bend * Math.PI) / 180) * dt);
+          if (sim.kraft === 0) collapse();
+        }
+        if (!sim.shrimp) return;
+        sim.t += dt;
+        // Hüfte rutscht, die Matte bremst
+        if (sim.v > 0) { sim.kidD += sim.v * dt; sim.v = Math.max(0, sim.v - FRICTION * dt); }
+        // Bo rutscht hinterher – gegen einen gestreckten Rahmen erst nach „hold“
+        const framed = kid.up > 0.5 && kid.frame > 0.5 && !sim.collapsed;
+        const canFollow = kid.kneeIn > 0 ? false : framed ? sim.t > sim.hold : sim.t > REACT;
+        if (canFollow && sim.boD < sim.kidD) sim.boD = Math.min(sim.kidD, sim.boD + sim.vB * dt);
+        sim.maxGap = Math.max(sim.maxGap, gap());
+        if (gap() >= KNEE_GAP && sim.gapOpenAt === null) { sim.gapOpenAt = sim.t; flashTag(tagGap, gapZone, 0.2); sfx.ding(); }
+        kid.x = -sim.kidD;
+        bo.x = -sim.boD;
+      }
+      function collapse() {
+        sim.collapsed = true;
+        gsap.to(bo, { lean: 1, duration: 0.3, ease: "power2.in" });
+        gsap.to(kid, { squash: 1, up: 0.3, duration: 0.3 });
+        sfx.uff();
+        flashTag(tagUff, kidHead, 0.5);
+        onCollapse?.();
+      }
+
+      // ---------- Kamera ----------
+      let camDist = 8;
+      function resize() {
+        renderer.setSize(innerWidth, innerHeight, false);
+        camera.aspect = innerWidth / innerHeight;
+        camDist = THREE.MathUtils.clamp(Math.max(8.4, 7.4 / camera.aspect), 8.4, 15);
+        camera.updateProjectionMatrix();
+      }
+      addEventListener("resize", resize);
+      resize();
+      const toScreen = (v) => { const p = v.clone().project(camera); return { x: (p.x * 0.5 + 0.5) * innerWidth, y: (-p.y * 0.5 + 0.5) * innerHeight }; };
+
+      // ---------- Ton & Sprache ----------
+      let soundOn = true, actx = null;
+      const ensureAudio = () => { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); };
+      function tone(type, f0, f1, dur, vol) {
+        if (!soundOn || !actx) return;
+        const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+        o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+        g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+      }
+      const sfx = {
+        shrimp: () => tone("sine", 320, 140, 0.3, 0.2),
+        uff: () => { tone("sine", 160, 60, 0.4, 0.35); tone("square", 220, 110, 0.15, 0.06); },
+        tick: () => tone("triangle", 660, 660, 0.12, 0.12),
+        click: () => tone("triangle", 520, 780, 0.12, 0.1),
+        knee: () => tone("triangle", 400, 900, 0.25, 0.18),
+        ding: () => { tone("triangle", 880, 880, 0.35, 0.16); setTimeout(() => tone("triangle", 1320, 1320, 0.4, 0.12), 90); },
+      };
+      let voice = null;
+      const pickVoice = () => { const vs = speechSynthesis.getVoices(); voice = vs.find((v) => v.lang === "de-DE" && /Anna|Petra|Helena|Google/.test(v.name)) || vs.find((v) => v.lang.startsWith("de")) || null; };
+      if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+      function speak(text) {
+        if (!soundOn || !("speechSynthesis" in window)) return;
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text.replace(/[–=]/g, ","));
+        u.lang = "de-DE"; if (voice) u.voice = voice; u.rate = 0.95; u.pitch = 1.1;
+        speechSynthesis.speak(u);
+      }
+      const soundBtn = document.getElementById("sound");
+      soundBtn.addEventListener("click", () => { soundOn = !soundOn; soundBtn.textContent = soundOn ? "🔊" : "🔇"; if (!soundOn && "speechSynthesis" in window) speechSynthesis.cancel(); });
+
+      // ---------- UI ----------
+      const $ = (s) => document.querySelector(s);
+      const sayEl = $("#say"), actionBtn = $("#action"), card = $("#card"), countEl = $("#count"), kraftEl = $("#kraft");
+      const tagGap = $("#tagGap"), tagUff = $("#tagUff"), tagOut = $("#tagOut");
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const until = (f) => new Promise((r) => { const id = setInterval(() => f() && (clearInterval(id), r()), 40); });
+      function say(text) {
+        gsap.killTweensOf(sayEl);
+        gsap.to(sayEl, { y: -10, opacity: 0, duration: 0.15, onComplete: () => { sayEl.textContent = text; gsap.fromTo(sayEl, { y: 16, opacity: 0, scale: 0.96 }, { y: 0, opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" }); } });
+        speak(text);
+      }
+      function showAction(label, onClick) {
+        actionBtn.textContent = label;
+        actionBtn.onclick = () => { hideAction(); onClick(); };
+        actionBtn.style.pointerEvents = "auto";
+        gsap.fromTo(actionBtn, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(2)", delay: 0.3 });
+      }
+      function hideAction() { actionBtn.style.pointerEvents = "none"; actionBtn.onclick = null; gsap.to(actionBtn, { opacity: 0, y: 20, duration: 0.2 }); }
+      function showCard({ title = "", text = "", button, onClick, button2, onClick2, seal = false, sealIcon = "🦐", levels, topics = false }) {
+        const h1 = card.querySelector("h1");
+        h1.textContent = title;
+        h1.classList.toggle("long", title.length > 26);
+        card.querySelector("p").textContent = text;
+        card.querySelector(".seal").hidden = !seal;
+        card.querySelector(".seal").textContent = sealIcon;
+        card.querySelector(".topics").hidden = !topics;
+        const close = (fn) => () => { ensureAudio(); card.style.pointerEvents = "none"; gsap.to(card, { opacity: 0, duration: 0.3, onComplete: fn }); };
+        const btn = card.querySelector(".btn.main"), alt = card.querySelector(".btn.alt");
+        btn.hidden = !button; btn.textContent = button || ""; btn.onclick = close(onClick);
+        alt.hidden = !button2; alt.textContent = button2 || ""; alt.onclick = close(onClick2);
+        const lv = card.querySelector(".levels");
+        lv.hidden = !levels;
+        lv.querySelectorAll("button").forEach((b) => (b.onclick = close(() => levels(+b.dataset.level))));
+        card.style.pointerEvents = "auto";
+        gsap.fromTo(card, { opacity: 0 }, { opacity: 1, duration: 0.35 });
+        gsap.fromTo(card.querySelector(".inner"), { y: 40, scale: 0.94 }, { y: 0, scale: 1, duration: 0.6, ease: "back.out(1.8)" });
+        speak([title, text].filter(Boolean).join(" "));
+      }
+      const starEls = [...document.querySelectorAll("#stars span")];
+      function setStars(n, pop = -1) {
+        starEls.forEach((s, i) => s.classList.toggle("on", i < n));
+        if (pop >= 0) gsap.fromTo(starEls[pop], { scale: 0.3, rotate: -90 }, { scale: 1, rotate: 0, duration: 0.6, ease: "back.out(3)" });
+      }
+      const tagTargets = new Map();
+      function flashTag(el, obj, lift = 0.4) {
+        tagTargets.set(el, { obj, lift });
+        gsap.killTweensOf(el);
+        gsap.timeline().fromTo(el, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(3)" }).to(el, { opacity: 0, duration: 0.4, delay: 1.6 });
+      }
+      async function countdown() {
+        for (const n of ["3", "2", "1"]) {
+          countEl.textContent = n;
+          sfx.tick();
+          gsap.fromTo(countEl, { opacity: 1, scale: 1.4 }, { opacity: 0, scale: 0.8, duration: 0.75, ease: "power2.in" });
+          await wait(750);
+        }
+      }
+      function showKraft(on) { gsap.to(kraftEl, { opacity: on ? 1 : 0, duration: 0.3 }); }
+
+      // ---------- Knöpfe ----------
+      const moveEls = Object.fromEntries([...document.querySelectorAll(".move")].map((b) => [b.dataset.move, b]));
+      let movesOpen = false;
+      function setMoves(list, pulse = null) {
+        for (const [k, el] of Object.entries(moveEls)) {
+          el.classList.toggle("show", list.includes(k));
+          el.classList.remove("on");
+          el.classList.toggle("pulse", k === pulse);
+        }
+        moveEls.foot.classList.toggle("on", kid.feet > 0.5);
+      }
+      for (const [k, el] of Object.entries(moveEls)) {
+        el.addEventListener("click", () => {
+          ensureAudio();
+          if (!movesOpen) return;
+          el.classList.remove("pulse");
+          doMove(k);
+        });
+      }
+      let onKnee = null, onCollapse = null;
+      function doMove(k) {
+        if (sim.done || sim.collapsed) return;
+        if (k === "frame") {
+          gsap.to(kid, { up: 1, frame: 1, duration: 0.25, overwrite: "auto" });
+          moveEls.frame.classList.add("on");
+          sfx.click();
+        }
+        if (k === "foot") {
+          if (sim.shrimp) return;
+          const close = kid.feet < 0.5;
+          gsap.to(kid, { feet: close ? 1 : 0, duration: 0.3, overwrite: "auto" });
+          moveEls.foot.classList.toggle("on", close);
+          sfx.click();
+        }
+        if (k === "shrimp") {
+          if (sim.shrimp) return;
+          sim.shrimp = true;
+          sim.t = 0;
+          sim.v = kid.feet > 0.5 ? V_CLOSE : V_FAR;
+          gsap.timeline().to(kid, { side: 1, duration: 0.2 }).to(kid, { side: 0.4, duration: 0.6 });
+          moveEls.shrimp.classList.add("on");
+          sfx.shrimp();
+        }
+        if (k === "knee") {
+          const ok = gap() >= KNEE_GAP;
+          if (ok) {
+            gsap.to(kid, { kneeIn: 1, duration: 0.35, ease: "back.out(1.6)" });
+            gsap.fromTo(bo, { hipY: 1.1 }, { hipY: 0.95, duration: 0.5, ease: "bounce.out" });
+            moveEls.knee.classList.add("on");
+            sfx.knee();
+            flashTag(tagOut, kidHead, 0.7);
+          }
+          onKnee?.(ok);
+        }
+      }
+
+      // ---------- Zurücksetzen ----------
+      function resetScene(level = 1) {
+        gsap.killTweensOf([kid, bo]);
+        Object.assign(kid, { x: 0, side: 0, up: 0, frame: 0, feet: level >= 3 ? 0 : 1, kneeIn: 0, squash: 0 });
+        Object.assign(bo, { x: 0, lean: 0, hipY: 0.95 });
+        Object.assign(sim, { timeScale: 1, pressure: false, kraft: 100, collapsed: false, shrimp: false, t: 0, v: 0, kidD: 0, boD: 0, maxGap: 0, gapOpenAt: null, done: false, hold: level === 5 ? 0.6 : 1.2, vB: level === 5 ? 1.4 : 1.0 });
+        movesOpen = false;
+        onKnee = onCollapse = null;
+        hideAction();
+      }
+      function resetAttempt(level) {
+        return new Promise((resolve) => {
+          gsap.to(kid, { x: 0, side: 0, up: 0, frame: 0, kneeIn: 0, squash: 0, feet: level >= 3 ? 0 : 1, duration: 0.6 });
+          gsap.to(bo, { x: 0, lean: 0, hipY: 0.95, duration: 0.6, onComplete: resolve });
+          Object.assign(sim, { pressure: false, kraft: 100, collapsed: false, shrimp: false, t: 0, v: 0, kidD: 0, boD: 0, maxGap: 0, gapOpenAt: null, done: false });
+        });
+      }
+
+      // ---------- Ein Versuch ----------
+      // Level 1: Bo drückt 3.5 s, du musst den Rahmen halten.
+      // Level 2/3: Platz schaffen (Lücke ≥ Knie). Level 4/5: Knie rein, bevor die Lücke zu ist.
+      async function attempt(n, { auto = null } = {}) {
+        movesOpen = !auto;
+        if (n === 1 || n === 5) {
+          if (n === 1) await countdown();
+          sim.pressure = true;
+          gsap.to(bo, { lean: 0.6, duration: 0.6 });
+          if (n === 1 && !kid.up) gsap.to(kid, { up: 1, duration: 0.3 }); // ohne Rahmen drückst du gebeugt
+        }
+        // Erst zuhören, dann die vorgespielte Bewegung starten (sonst verpufft z. B. ein schnelles „Knie rein“)
+        const resultP = new Promise((resolve) => {
+          const finish = (r) => { sim.done = true; movesOpen = false; clearInterval(id); resolve(r); };
+          onCollapse = () => finish({ ok: false, why: "collapse" });
+          onKnee = (ok) => (ok ? finish({ ok: true, why: "knee" }) : finish({ ok: false, why: "tight" }));
+          const t0 = performance.now();
+          const id = setInterval(() => {
+            const elapsed = (performance.now() - t0) / 1000;
+            if (n === 1 && elapsed > 3.5 / sim.timeScale) finish({ ok: true, why: "held" });
+            // Platz geschafft? (Level 2/3): kurz nach dem Shrimp auswerten
+            if ((n === 2 || n === 3) && sim.shrimp && sim.v === 0 && sim.t > 0.7) finish({ ok: sim.maxGap >= KNEE_GAP, why: sim.maxGap >= KNEE_GAP ? "space" : kid.frame > 0.5 ? "short" : "followed" });
+            // Level 4/5: Lücke wieder zu, ohne Knie
+            if ((n === 4 || n === 5) && sim.shrimp && sim.v === 0 && gap() < KNEE_GAP && sim.t > 0.7) finish({ ok: false, why: sim.maxGap >= KNEE_GAP ? "late" : kid.frame > 0.5 ? "short" : "followed" });
+          }, 40);
+        });
+        if (auto) await auto();
+        const result = await resultP;
+        sim.pressure = false;
+        return result;
+      }
+
+      // ---------- Die Level ----------
+      const LEVELS = {
+        1: {
+          icon: "💪", moves: ["frame"],
+          intro: "Bo drückt dich runter. Wie hältst du ihn weg?",
+          probe: { say: "Uff! Gebeugte Arme werden schnell müde." },
+          question: "Wie hältst du länger?",
+          explain: { say: "Arme gestreckt – dann tragen die Knochen, nicht die Muskeln!", act: async () => { gsap.to(kid, { up: 1, frame: 1, duration: 0.3 }); } },
+          practice: "Drück „Rahmen“, bevor Bo drückt!",
+          fail: () => "Die Arme sind müde geworden – streck sie!",
+          title: "Rahmen mit geraden Armen!",
+          task: "Üb mit deinem Trainer: Arme gestreckt an seine Hüfte – und halten!",
+          kraft: true,
+        },
+        2: {
+          icon: "🦐", moves: ["frame", "shrimp"],
+          intro: "Jetzt willst du raus. Wie machst du Platz?",
+          probe: { say: "Bo rutscht einfach hinterher!", auto: async () => { await wait(500); doMove("shrimp"); } },
+          question: "Wie bleibt die Lücke offen?",
+          explain: { say: "Erst Rahmen, dann Hüfte weg – der Rahmen hält Bo auf!", act: async () => { doMove("frame"); await wait(700); doMove("shrimp"); } },
+          practice: "Erst Rahmen, dann Hüfte weg!",
+          fail: (r) => (r.why === "followed" ? "Bo ist hinterhergerutscht – erst Rahmen!" : "Nochmal: Rahmen, dann Hüfte weg!"),
+          title: "Erst Rahmen, dann Hüfte weg!",
+          task: "Üb den Shrimp auf der Matte: Hüfte wegschieben – zehnmal pro Seite!",
+        },
+        3: {
+          icon: "🦶", moves: ["frame", "foot", "shrimp"],
+          intro: "Deine Hüfte kommt nicht weit. Warum?",
+          probe: { say: "Fuß weit weg – die Hüfte rutscht kaum!", auto: async () => { doMove("frame"); await wait(600); doMove("shrimp"); } },
+          question: "Wie schiebst du stärker?",
+          explain: { say: "Fuß nah an den Po – dann schiebt er dich weit weg!", act: async () => { doMove("frame"); doMove("foot"); await wait(700); doMove("shrimp"); } },
+          practice: "Rahmen, Fuß ran, Hüfte weg!",
+          fail: (r) => (r.why === "followed" ? "Erst Rahmen!" : kid.feet < 0.5 ? "Fuß nah an den Po!" : "Nochmal!"),
+          title: "Fuß auf die Matte, nah am Po!",
+          task: "Üb mit deinem Trainer: Fuß aufstellen und die Hüfte weit wegschieben!",
+        },
+        4: {
+          icon: "🦵", moves: ["frame", "foot", "shrimp", "knee"],
+          intro: "Platz ist da. Und jetzt?",
+          probe: { say: "Zu lange gewartet – die Lücke ist zu!", auto: async () => { doMove("frame"); doMove("foot"); await wait(600); doMove("shrimp"); } },
+          question: "Was kommt in die Lücke?",
+          explain: { say: "Sofort das Knie rein – dann kann Bo nicht zurück!", act: async () => { doMove("frame"); doMove("foot"); await wait(700); doMove("shrimp"); await until(() => gap() >= KNEE_GAP + 0.05); doMove("knee"); } },
+          practice: "Rahmen, Fuß, Hüfte weg – und Knie rein!",
+          fail: (r) => (r.why === "late" ? "Zu spät – sofort Knie rein!" : r.why === "tight" ? "Zu eng – erst Hüfte weg!" : r.why === "followed" ? "Erst Rahmen!" : "Fuß nah an den Po!"),
+          title: "Platz da? Sofort Knie rein!",
+          task: "Zeig deinem Trainer: Shrimp und Knie rein – auf beiden Seiten!",
+        },
+        5: {
+          icon: "🦐", moves: ["frame", "foot", "shrimp", "knee"],
+          intro: "Bo drückt sofort und ist schnell. Schaffst du alles?",
+          practice: "Rahmen, Fuß, Hüfte weg, Knie rein!",
+          fail: (r) => (r.why === "collapse" ? "Schneller den Rahmen!" : r.why === "late" ? "Schneller das Knie rein!" : r.why === "tight" ? "Zu eng – erst Hüfte weg!" : r.why === "followed" ? "Erst Rahmen!" : "Fuß nah an den Po!"),
+          title: "Rahmen, Fuß, Hüfte weg, Knie rein!",
+          task: "Zeig deinem Trainer deine beste Hüftflucht – auf beiden Seiten!",
+          kraft: true,
+        },
+      };
+
+      const flow = {
+        start() {
+          resetScene();
+          setMoves([]);
+          showKraft(false);
+          showCard({ seal: true, title: "Hüftflucht", topics: true, text: "Welches Level übst du?", levels: (n) => flow.level(n) });
+        },
+
+        level(n) {
+          const L = LEVELS[n];
+          resetScene(n);
+          setMoves([]);
+          showKraft(false);
+          showCard({ seal: true, sealIcon: L.icon, title: `Level ${n}`, text: L.intro, button: "Los!", onClick: () => (n === 5 ? flow.practice(n, 0) : flow.probe(n)) });
+        },
+
+        async probe(n) {
+          const L = LEVELS[n];
+          setMoves(L.moves);
+          showKraft(!!L.kraft);
+          say("Schau zu!");
+          await wait(800);
+          await attempt(n, { auto: L.probe.auto || (async () => {}) });
+          say(L.probe.say);
+          await wait(2200);
+          showCard({ title: L.question, button: "Zeig's mir", onClick: () => flow.explain(n) });
+        },
+
+        async explain(n) {
+          const L = LEVELS[n];
+          await resetAttempt(n);
+          setMoves(L.moves);
+          say(L.explain.say);
+          await wait(1200);
+          sim.timeScale = 0.45;
+          await attempt(n, { auto: L.explain.act });
+          sim.timeScale = 1;
+          await wait(1200);
+          showAction("Jetzt du!", async () => { await resetAttempt(n); flow.practice(n, 0); });
+        },
+
+        async practice(n, round, stars = 0, tries = 0) {
+          const L = LEVELS[n];
+          showKraft(!!L.kraft);
+          setMoves(L.moves, round === 0 && tries === 0 ? L.moves.at(-1) : null);
+          gsap.to("#stars", { opacity: 1, duration: 0.3 });
+          setStars(stars);
+          if (tries === 0) say(round === 0 ? L.practice : ["", "Nochmal!", "Letzte Runde!"][round]);
+          if (n === 5) await wait(900);
+          const r = await attempt(n);
+          await wait(700);
+          if (r.ok) {
+            stars += tries === 0 ? 1 : 0;
+            setStars(stars, tries === 0 ? stars - 1 : -1);
+            sfx.ding();
+            say(r.why === "held" ? "Stark gehalten!" : r.why === "space" ? "Platz geschafft!" : "Du bist raus!");
+            await wait(1800);
+            await resetAttempt(n);
+            if (round < 2) flow.practice(n, round + 1, stars, 0);
+            else flow.end(n, stars);
+          } else {
+            say(L.fail(r));
+            await wait(1800);
+            await resetAttempt(n);
+            flow.practice(n, round, stars, tries + 1);
+          }
+        },
+
+        end(n, stars) {
+          const L = LEVELS[n];
+          gsap.to("#stars", { opacity: 0, duration: 0.3 });
+          setMoves([]);
+          showKraft(false);
+          showCard({
+            seal: true, sealIcon: L.icon, title: L.title, text: L.task,
+            button: n < 5 ? `Level ${n + 1}!` : "Nochmal", onClick: () => flow.level(n < 5 ? n + 1 : 5),
+            button2: stars < 2 ? "Nochmal üben" : "Level wählen", onClick2: stars < 2 ? () => flow.level(n) : flow.start,
+          });
+        },
+      };
+      $("#levelBtn").addEventListener("click", () => { ensureAudio(); flow.start(); });
+
+      // ---------- Animationsschleife ----------
+      const clock = new THREE.Clock();
+      const kraftFill = kraftEl.querySelector(".fill"), kraftFace = kraftEl.querySelector(".face");
+      function tick() {
+        const dt = Math.min(clock.getDelta(), 1 / 30);
+        stepSim(dt * sim.timeScale);
+        applyBo();
+        applyKid();
+
+        // Lücke zeigen: zwischen deiner rechten Hüfte und Bos rechtem Knie
+        const g = gap();
+        gapZone.visible = sim.shrimp && g > 0.02;
+        gapZone.scale.set(Math.max(0.01, g), 0.7, 1);
+        gapZone.position.x = kid.x + 0.42 + g / 2;
+        gapMat.color.set(g >= KNEE_GAP ? COLORS.ok : COLORS.out);
+
+        // Kraft-Meter
+        kraftFill.style.height = sim.kraft + "%";
+        kraftFill.style.background = sim.kraft > 50 ? "#1db954" : sim.kraft > 20 ? "#ffb020" : "#e5243b";
+        kraftFace.textContent = sim.kraft > 50 ? "💪" : sim.kraft > 20 ? "😬" : "😩";
+
+        camera.position.set(-0.3, 0.62 * camDist, 0.78 * camDist);
+        camera.lookAt(camLook);
+        for (const [el, { obj, lift }] of tagTargets) {
+          obj.getWorldPosition(vA);
+          vA.y += lift;
+          const p = toScreen(vA);
+          el.style.left = p.x + "px";
+          el.style.top = p.y + "px";
+        }
+        renderer.render(scene, camera);
+        requestAnimationFrame(tick);
+      }
+      tick();
+      flow.start();
+
+      // Zum Testen in der Konsole
+      window.hueftflucht = { sim, kid, bo, gap, doMove, flow, LEVELS, attempt, open: () => movesOpen };
+    </script>
+  </body>
+</html>
