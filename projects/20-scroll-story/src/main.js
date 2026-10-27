@@ -12,7 +12,7 @@
 //   scroll.js          Lenis + ScrollTrigger + der eine Takt, Auto-Scroll
 //   text-animations.js SplitText-Intro und Text-Helfer für die Kapitel
 //   debug.js           Tasten D/H/A, HUD, Fortschrittsbalken
-//   easter-egg.js      fünfmal aufs Siegel stempeln → „hey.“
+//   easter-egg.js      drei Geheimnisse: Stempeln, Halten, Gold
 
 import { createRenderer, createScene, createCamera, createPost, onResize, isMobile, reducedMotion } from "./setup.js";
 import * as THREE from "three/webgpu";
@@ -22,7 +22,7 @@ import { createScroll, startLoop, createAutoScroll } from "./scroll.js";
 import { prepareText, createIntro } from "./text-animations.js";
 import { createChapters } from "./chapters.js";
 import { createDebug } from "./debug.js";
-import { createEasterEgg } from "./easter-egg.js";
+import { createEasterEggs } from "./easter-egg.js";
 
 // --- 1 · Setup ---
 const canvas = document.querySelector("#scene");
@@ -63,7 +63,7 @@ const autoScroll = createAutoScroll(lenis, {
 
 const debug = createDebug({ chapters, pathHelper, rig, renderer, autoScroll });
 
-const egg = createEasterEgg({ reduced: reducedMotion });
+const eggs = createEasterEggs({ reduced: reducedMotion });
 
 // --- Siegel-Entdeckungen: Maus drückt die Splitter weg, Klick stempelt ---
 // Der Mausstrahl trifft die Ebene des Siegels; der Treffpunkt geht als uniform
@@ -73,6 +73,7 @@ const sealPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -SEAL_CENTER.z);
 const ndc = new THREE.Vector2(9, 9);
 const hit = new THREE.Vector3();
 let overSeal = false;
+const introSphere = new THREE.Sphere(new THREE.Vector3(), 1.45); // Kugel im Intro
 
 addEventListener("pointermove", (e) => {
   ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
@@ -80,8 +81,8 @@ addEventListener("pointermove", (e) => {
 
 addEventListener("click", (e) => {
   if (e.target.closest("a")) return;
-  if (egg.active) return egg.close();
-  if (overSeal) egg.stamp();
+  if (eggs.heyActive) return eggs.closeHey();
+  if (overSeal) eggs.stamp();
 });
 
 function updatePointer(dt) {
@@ -90,9 +91,13 @@ function updatePointer(dt) {
   overSeal = U.form.value > 0.9 && onPlane !== null && hit.distanceTo(SEAL_CENTER) < 3.6;
   if (overSeal) U.pointer.value.copy(hit);
   U.pointerAmt.value = THREE.MathUtils.damp(U.pointerAmt.value, overSeal && !reducedMotion ? 1 : 0, 6, dt);
-  document.body.style.cursor = overSeal || egg.active ? "pointer" : "";
+  // Die Kugel lässt sich nur im Intro greifen, solange sie noch ganz ist
+  const sphereHit = U.scatter.value < 0.02 && raycaster.ray.intersectsSphere(introSphere);
+  const overSphere = eggs.update(dt, { sphereHit });
+
+  document.body.style.cursor = overSeal || overSphere || eggs.heyActive ? "pointer" : "";
   // Wer hochscrollt, bekommt das Siegel zurück
-  if (egg.active && U.form.value < 0.9) egg.close();
+  if (eggs.heyActive && U.form.value < 0.9) eggs.closeHey();
 }
 
 // Shader vorab bauen, damit der erste Scroll nicht ruckelt

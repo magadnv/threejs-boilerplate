@@ -25,6 +25,7 @@ import {
   vec3,
   time,
   rotate,
+  color,
   distance,
   cameraPosition,
   PI,
@@ -49,7 +50,10 @@ export const U = {
   pointer: uniform(new THREE.Vector3(0, 0, -100)), // Maus auf der Siegel-Ebene
   pointerAmt: uniform(0),
   stamp: uniform(0),
-  egg: uniform(0), // Easter Egg: 0 = Siegel, 1 = „hey.“
+  egg: uniform(0), // Easter Egg 1: 0 = Siegel, 1 = „hey.“
+  charge: uniform(0), // Easter Egg 2: Kugel gedrückt halten → lädt auf 0..1
+  burst: uniform(0), // … und explodiert, federt zurück
+  gold: uniform(0), // Easter Egg 3: Gold-Edition
 };
 
 // Wie weit der Zeitversatz zwischen den Splittern reicht (0 = alle gleichzeitig)
@@ -232,7 +236,12 @@ export async function createWorld(scene, path, { count, reduced }) {
   const press = smoothstep(1.5, 0, toPointer.length()).mul(U.pointerAmt).mul(e2).mul(e3.oneMinus());
   const push = vec3(toPointer.normalize().mul(press.mul(0.35)), press.mul(0.9));
 
-  const p1 = mix(spun, aScatter, e1).add(aArc.mul(sin(e1.mul(PI))));
+  // Aufladen: die Kugel zittert immer heftiger; Supernova: Stoß nach außen
+  const charge2 = U.charge.mul(U.charge);
+  const jitter = sin(time.mul(38).add(aRnd.y.mul(60))).mul(charge2).mul(0.07).add(1);
+  const charged = spun.mul(jitter).add(aArc.mul(U.burst).mul(2.2));
+
+  const p1 = mix(charged, aScatter, e1).add(aArc.mul(sin(e1.mul(PI))));
   // Easter Egg: aus dem Siegel wird „hey.“ – mit eigenem Bogen, Splitter für Splitter
   const sealOrHey = mix(aSeal, aHey, e3).add(aArc.mul(sin(e3.mul(PI)).mul(0.8)));
   const offset = mix(p1, sealOrHey, e2)
@@ -251,14 +260,19 @@ export async function createWorld(scene, path, { count, reduced }) {
 
   material.positionNode = rotate(positionLocal.mul(scale).mul(nearFade), rotation).add(offset);
 
-  const base = mix(U.colorA, U.colorB, aRnd.x);
+  const gold = mix(color(new THREE.Color("#9c6a1c")), color(new THREE.Color("#ffe2a0")), aRnd.x);
+  const base = mix(mix(U.colorA, U.colorB, aRnd.x), gold, U.gold);
   material.colorNode = base;
   // Schimmer: ein schmales Lichtband wandert diagonal über das fertige Siegel
   const home = mix(aSeal, aHey, e3); // der Schimmer läuft auch über „hey.“
   const diag = home.x.sub(SEAL_CENTER.x).add(home.y.sub(SEAL_CENTER.y).mul(0.6));
   const band = smoothstep(0.7, 0, diag.sub(U.sweep).abs()).mul(e2);
   const sparkle = pow(aRnd.y, 6).mul(3.2).add(0.06);
-  material.emissiveNode = base.mul(U.glow).mul(sparkle).add(vec3(1, 0.92, 0.86).mul(band.mul(1.6).add(press.mul(1.2))));
+  const glint = mix(vec3(1, 0.92, 0.86), vec3(1, 0.78, 0.4), U.gold);
+  material.emissiveNode = base
+    .mul(U.glow)
+    .mul(sparkle.add(charge2.mul(2.5)))
+    .add(glint.mul(band.mul(1.6).add(press.mul(1.2))));
 
   const shardSize = 0.075 * Math.sqrt(4000 / count);
   const geometry = new THREE.OctahedronGeometry(shardSize, 0);
@@ -273,7 +287,8 @@ export async function createWorld(scene, path, { count, reduced }) {
 
   // --- Der leuchtende Kern (Kapitel 1), scheint durch die Lücken der Splitter ---
   const coreMat = new THREE.MeshBasicNodeMaterial();
-  coreMat.colorNode = U.coreColor.mul(U.coreGlow);
+  // Beim Aufladen glüht der Kern auf, die Supernova blitzt hell
+  coreMat.colorNode = U.coreColor.mul(U.coreGlow.add(U.charge.mul(5)).add(U.burst.mul(10)));
   const core = new THREE.Mesh(new THREE.SphereGeometry(RADIUS * 0.9, 48, 24), coreMat);
   scene.add(core);
 

@@ -206,6 +206,44 @@ body.egg-on .copy--cta {
   pointer-events: none;
 }
 
+/* --- Toast (Easter Egg 2 + 3) --- */
+.toast {
+  position: fixed;
+  top: calc(var(--pad) + 36px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 16px 26px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(6, 6, 9, 0.6);
+  backdrop-filter: blur(10px);
+  text-align: center;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.toast .eyebrow {
+  margin-bottom: 8px;
+  color: var(--red);
+}
+
+.toast__line {
+  font-family: var(--serif);
+  font-size: clamp(24px, 2.6vw, 36px);
+  line-height: 1.1;
+}
+
+/* Gold-Edition: der Signalton wird gold – Titel, Balken, Toast */
+body.gold {
+  --red: #d9a441;
+}
+
+.brand__mark {
+  cursor: default;
+  user-select: none;
+}
+
 /* --- Header --- */
 .brand {
   position: fixed;
@@ -379,6 +417,11 @@ body.autoplay {
   .brand__meta,
   .keys {
     display: none;
+  }
+
+  .toast {
+    width: calc(100vw - 2 * var(--pad));
+    white-space: normal;
   }
 }
 
