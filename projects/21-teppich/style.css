@@ -1,0 +1,107 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #07070a;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  font: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+  color: #8a8a8a;
+}
+
+/* Feste Formate (1:1, 16:9) werden per JS ins Fenster eingepasst */
+#scene {
+  display: block;
+  cursor: crosshair;
+}
+
+#hud {
+  position: fixed;
+  top: 14px;
+  left: 16px;
+  padding: 8px 12px;
+  border-left: 2px solid #cf1830;
+  background: rgba(10, 10, 14, 0.72);
+  color: #bbb;
+  pointer-events: none;
+}
+
+#hud b {
+  color: #fff;
+  font-weight: 600;
+}
+
+#hud span {
+  color: #777;
+}
+
+#hint {
+  position: fixed;
+  left: 16px;
+  bottom: 14px;
+  padding: 4px 8px;
+  background: rgba(10, 10, 14, 0.6);
+  letter-spacing: 0.04em;
+}
+
+#badge {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(10, 10, 14, 0.75);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+
+#badge.show {
+  opacity: 1;
+}
+
+/* Taste H: nur noch der Teppich */
+body.clean #hud,
+body.clean #hint {
+  display: none;
+}
+
+/* --- scroll.html: Seite scrollt, Canvas bleibt stehen --- */
+body.scroll {
+  display: block;
+  height: auto;
+  overflow: auto;
+}
+
+body.scroll #scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.chapter {
+  position: relative;
+  height: 100vh;
+  display: grid;
+  align-items: end;
+  padding: 0 6vw 12vh;
+  font: 500 clamp(28px, 5vw, 64px) / 1.05 ui-sans-serif, system-ui, sans-serif;
+  color: #fff;
+  pointer-events: none;
+}
+
+.chapter small {
+  display: block;
+  margin-bottom: 0.6em;
+  font: 12px ui-monospace, Menlo, monospace;
+  color: #cf1830;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
