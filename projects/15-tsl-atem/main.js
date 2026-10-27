@@ -20,6 +20,11 @@ import {
   smoothstep,
   sin,
   varying,
+  Fn,
+  select,
+  cross,
+  distance,
+  transformNormalToView,
   pass,
 } from "three/tsl";
 // bloom() liegt nicht in three/tsl, sondern bei den Addons
@@ -73,6 +78,11 @@ const params = {
   colorB: uniform(new THREE.Color("#cf1830")), // Wölbungen: madebymaga-Rot
   fresnelStrength: uniform(1.3),
   bloomStrength: uniform(0.4),
+  // Extras
+  bumpLight: uniform(1), // 0 = glatte Kugel-Normalen, 1 = Licht folgt jeder Beule
+  heartbeat: uniform(0), // 0 = ruhiges Atmen, 1 = Herzschlag
+  magnetStrength: uniform(0.3), // wie weit die Maus die Haut herauszieht
+  magnetRadius: uniform(0.7), // wie groß die Beule unter der Maus ist
 };
 
 // Eigene Zeit statt des fertigen `time`-Nodes:
@@ -81,39 +91,116 @@ const params = {
 // selbst hoch: phase += delta × speed – so bleibt die Bewegung weich.
 const phase = uniform(0);
 
+// Maus auf der Kugel: Richtung vom Mittelpunkt zum Treffpunkt
+// und wie stark der Magnet gerade an ist (0 … 1, weich ein- und ausgeblendet)
+const mouseDir = uniform(new THREE.Vector3(0, 0, 1));
+const mouseActive = uniform(0);
+
 // ============================================================
-// 3 · Vertex-Displacement – die Kugel atmet
+// 3 · Rhythmus – Atem oder Herzschlag
 // ============================================================
 
-// a) Wo fragen wir das Rauschen ab? Die Position auf der Kugel,
-//    skaliert mit der Frequenz (größer = kleinere, unruhigere Beulen),
-//    plus ein Versatz, der mit der Zeit wandert → das Muster fließt.
-const p = positionLocal
-  .mul(params.noiseFrequency)
-  .add(vec3(phase.mul(0.6), phase, phase.mul(-0.4)));
-
-// b) mx_noise_float = Perlin-Rauschen aus MaterialX, Werte ca. −1 … +1.
-//    Zwei Lagen: eine große, langsame Welle + eine feine, halb so starke.
-//    Das macht die Bewegung organisch statt gleichförmig.
-const noiseLarge = mx_noise_float(p);
-const noiseFine = mx_noise_float(p.mul(2.3).add(7.1)).mul(0.35);
-
-// c) Ein ganz langsames Ein- und Ausatmen der ganzen Kugel (sin über die Zeit)
+// Atem: ein langsames sin über die Zeit, die ganze Kugel schwillt sanft
 const breath = sin(phase.mul(1.6)).mul(0.04);
 
-// d) Summe = wie weit sich dieser Punkt nach außen (+) oder innen (−) schiebt
-const displacement = noiseLarge.add(noiseFine).mul(params.noiseStrength).add(breath);
+// Herzschlag: sin().max(0) schneidet die negative Hälfte ab,
+// pow(14) macht aus dem runden Buckel einen kurzen, harten Schlag.
+// Zwei Schläge kurz hintereinander = „ba-bumm“.
+const beatWave = (x) => sin(x).max(0).pow(14);
+const beatX = phase.mul(18); // bei Geschwindigkeit 0.35 ≈ 60 Schläge pro Minute
+const beat = beatWave(beatX).add(beatWave(beatX.sub(0.9)).mul(0.6));
 
-// e) Neue Position = alte Position + Normale × Verschiebung.
+// mix() blendet per Regler zwischen beiden Rhythmen
+const rhythm = mix(breath, beat.mul(0.1), params.heartbeat);
+
+// ============================================================
+// 4 · Vertex-Displacement – die Kugel atmet
+// ============================================================
+// Fn() baut eine wiederverwendbare Shader-Funktion. Wir brauchen die
+// Verschiebung gleich dreimal (Punkt + zwei Nachbarn für die Normalen),
+// deshalb steckt sie in einer Funktion statt in einer festen Kette.
+// Auf einer Kugel mit Radius 1 ist die Normale gleich der Position,
+// deshalb reicht als Eingang die Richtung `dir`.
+
+// Magnet: 1 direkt unter der Maus, weich abfallend bis 0 am Radius-Rand.
+// distance() misst den Abstand zweier Punkte auf der Kugel.
+const magnetAt = Fn(([dir]) => {
+  const d = distance(dir, mouseDir);
+  return float(1).sub(smoothstep(0, params.magnetRadius, d)).mul(mouseActive);
+});
+
+const displace = Fn(([dir]) => {
+  // a) Wo fragen wir das Rauschen ab? Die Richtung, skaliert mit der
+  //    Frequenz (größer = kleinere Beulen), plus ein Versatz, der mit der
+  //    Zeit wandert → das Muster fließt.
+  const p = dir.mul(params.noiseFrequency).add(vec3(phase.mul(0.6), phase, phase.mul(-0.4)));
+
+  // b) mx_noise_float = Perlin-Rauschen aus MaterialX, Werte ca. −1 … +1.
+  //    Zwei Lagen: eine große, langsame Welle + eine feine, schwächere.
+  //    Das macht die Bewegung organisch statt gleichförmig.
+  const noiseLarge = mx_noise_float(p);
+  const noiseFine = mx_noise_float(p.mul(2.3).add(7.1)).mul(0.35);
+
+  // c) Summe = wie weit sich dieser Punkt nach außen (+) oder innen (−)
+  //    schiebt: Rauschen + Rhythmus + Beule unter der Maus
+  return noiseLarge
+    .add(noiseFine)
+    .mul(params.noiseStrength)
+    .add(rhythm)
+    .add(magnetAt(dir).mul(params.magnetStrength));
+});
+
+const displacement = displace(normalLocal);
+
+// d) Neue Position = alte Position + Normale × Verschiebung.
 //    Die Normale zeigt auf einer Kugel immer nach außen.
 const displacedPosition = positionLocal.add(normalLocal.mul(displacement));
 
-// f) varying() reicht den Wert vom Vertex- an den Fragment-Shader weiter.
+// e) varying() reicht Werte vom Vertex- an den Fragment-Shader weiter.
 //    So wird das Rauschen nur pro Ecke berechnet, nicht pro Pixel noch einmal.
 const vDisplacement = varying(displacement, "vDisplacement");
+const vMagnet = varying(magnetAt(normalLocal), "vMagnet");
 
 // ============================================================
-// 4 · Farbe – Täler dunkel, Wölbungen hell
+// 5 · Normalen neu berechnen – Licht fängt jede Beule
+// ============================================================
+// positionNode verschiebt nur die Punkte. Die Normalen zeigen danach noch
+// wie bei einer glatten Kugel, deshalb sieht das Licht die Beulen nicht.
+// Lösung (Finite Differences): Wir verschieben zwei Nachbarpunkte ein
+// winziges Stück daneben genauso und spannen aus den beiden Kanten mit
+// cross() eine neue Fläche auf. Ihre Senkrechte ist die neue Normale.
+
+const bumpedNormal = Fn(() => {
+  const n = normalLocal;
+
+  // Zwei Richtungen, die auf der Kugel entlang laufen (Tangente t, Bitangente b).
+  // cross(a, b) liefert einen Vektor, der senkrecht auf beiden steht.
+  // Am Pol wäre (0,1,0) parallel zur Normalen → dort mit (1,0,0) helfen.
+  const helper = select(n.y.abs().greaterThan(0.99), vec3(1, 0, 0), vec3(0, 1, 0));
+  const t = cross(n, helper).normalize();
+  const b = cross(n, t).normalize();
+
+  // Zwei Nachbar-Richtungen, ein kleines Stück daneben
+  const eps = 0.01;
+  const nT = n.add(t.mul(eps)).normalize();
+  const nB = n.add(b.mul(eps)).normalize();
+
+  // Alle drei Punkte verschieben: Richtung × (Radius 1 + Verschiebung)
+  const p0 = n.mul(displace(n).add(1));
+  const pT = nT.mul(displace(nT).add(1));
+  const pB = nB.mul(displace(nB).add(1));
+
+  // Kanten zu den Nachbarn → cross → neue Normale (zeigt nach außen)
+  return cross(pT.sub(p0), pB.sub(p0)).normalize();
+})();
+
+// Regler „Licht-Beulen“ blendet zwischen glatter und neuer Normale.
+// transformNormalToView bringt sie in den Kamera-Raum, den das Material erwartet.
+const finalNormal = mix(normalLocal, bumpedNormal, params.bumpLight).normalize();
+const vNormal = varying(transformNormalToView(finalNormal), "vBumpNormal");
+
+// ============================================================
+// 6 · Farbe – Täler dunkel, Wölbungen hell
 // ============================================================
 
 // smoothstep macht aus der Verschiebung (ca. −0.3 … +0.3) einen weichen
@@ -122,10 +209,11 @@ const heat = smoothstep(-0.12, 0.3, vDisplacement);
 const surfaceColor = mix(params.colorA, params.colorB, heat);
 
 // ============================================================
-// 5 · Fresnel-Glow am Rand
+// 7 · Fresnel-Glow am Rand
 // ============================================================
 
 // normalView = wohin die Oberfläche aus Sicht der Kamera zeigt
+// (seit wir material.normalNode setzen, ist das unsere neue Normale)
 // positionViewDirection = Richtung vom Punkt zur Kamera
 // dot() ist 1, wenn die Fläche uns direkt anschaut (Mitte),
 // und 0, wenn sie seitlich wegkippt (Rand). 1 − dot → Rand hell.
@@ -135,14 +223,19 @@ const fresnel = float(1).sub(facing).pow(3.5); // pow schärft den Rand
 // Glühfarbe: Farbe B Richtung Weiß aufgehellt, damit der Rand „brennt“
 const glowColor = mix(params.colorB, vec3(1, 0.85, 0.85), 0.25);
 
-// Rand-Glow + ein Hauch Eigenleuchten auf den höchsten Wölbungen
+// Beim Herzschlag blitzt der Rand mit jedem Schlag auf
+const pulseGlow = float(1).add(beat.mul(params.heartbeat).mul(1.5));
+
+// Rand-Glow + Eigenleuchten auf den höchsten Wölbungen + Glut unter der Maus
 const emissive = glowColor
   .mul(fresnel)
   .mul(params.fresnelStrength)
-  .add(params.colorB.mul(heat.pow(4)).mul(0.6));
+  .mul(pulseGlow)
+  .add(params.colorB.mul(heat.pow(4)).mul(0.6))
+  .add(glowColor.mul(vMagnet.pow(2)).mul(params.magnetStrength).mul(2));
 
 // ============================================================
-// 6 · Material und Kugel
+// 8 · Material und Kugel
 // ============================================================
 
 const material = new THREE.MeshStandardNodeMaterial({
@@ -152,13 +245,14 @@ const material = new THREE.MeshStandardNodeMaterial({
 material.positionNode = displacedPosition; // Vertex-Shader: neue Form
 material.colorNode = surfaceColor; // Fragment-Shader: Grundfarbe
 material.emissiveNode = emissive; // Fragment-Shader: Eigenleuchten
+material.normalNode = vNormal.normalize(); // Fragment-Shader: neue Normale fürs Licht
 
 // Viele Segmente, damit das Displacement weich aussieht
 const sphere = new THREE.Mesh(new THREE.SphereGeometry(1, 256, 256), material);
 scene.add(sphere);
 
 // ============================================================
-// 7 · Post-Processing – dezenter Bloom
+// 9 · Post-Processing – dezenter Bloom
 // ============================================================
 // RenderPipeline ist der neue Name von PostProcessing (seit r183).
 
@@ -176,7 +270,7 @@ const bloomPass = bloom(sceneColor, params.bloomStrength, 0.4, 0.2);
 renderPipeline.outputNode = sceneColor.add(bloomPass);
 
 // ============================================================
-// 8 · Canvas-Formate (Taste F)
+// 10 · Canvas-Formate (Taste F)
 // ============================================================
 
 const formats = [
@@ -220,7 +314,7 @@ function showBadge(text) {
 }
 
 // ============================================================
-// 9 · GUI
+// 11 · GUI
 // ============================================================
 
 const gui = new GUI({ title: "TSL Atem" });
@@ -236,8 +330,54 @@ look.addColor(params.colorB, "value").name("Farbe B (Wölbung)");
 look.add(params.fresnelStrength, "value", 0, 6, 0.01).name("Fresnel-Stärke");
 look.add(params.bloomStrength, "value", 0, 2, 0.01).name("Bloom-Stärke");
 
+const extras = gui.addFolder("Extras");
+extras.add(params.bumpLight, "value", 0, 1, 0.01).name("Licht-Beulen");
+extras.add(params.heartbeat, "value", 0, 1, 0.01).name("Atem ↔ Herzschlag");
+extras.add(params.magnetStrength, "value", 0, 0.8, 0.01).name("Magnet-Stärke");
+extras.add(params.magnetRadius, "value", 0.1, 1.5, 0.01).name("Magnet-Radius");
+
 // ============================================================
-// 10 · Tasten: H (Panel), F (Format), S (Screenshot)
+// 12 · Maus-Magnet
+// ============================================================
+// Die Kugel liegt im Ursprung und dreht sich nicht (nur die Kamera kreist),
+// deshalb ist Welt- gleich Objekt-Raum. Statt gegen 130.000 Dreiecke zu
+// raycasten, schneiden wir den Mausstrahl mit einer gedachten Kugel –
+// mathematisch exakt und praktisch kostenlos.
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const hitSphere = new THREE.Sphere(new THREE.Vector3(), 1.1);
+const hitPoint = new THREE.Vector3();
+let pointerOnCanvas = false;
+
+canvas.addEventListener("pointermove", (event) => {
+  const rect = canvas.getBoundingClientRect();
+  pointer.set(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  pointerOnCanvas = true;
+});
+canvas.addEventListener("pointerleave", () => (pointerOnCanvas = false));
+
+function updateMagnet(delta) {
+  let target = 0;
+
+  if (pointerOnCanvas) {
+    raycaster.setFromCamera(pointer, camera);
+    if (raycaster.ray.intersectSphere(hitSphere, hitPoint)) {
+      // Richtung weich nachziehen, damit die Beule der Maus „folgt“
+      mouseDir.value.lerp(hitPoint.normalize(), 0.15).normalize();
+      target = 1;
+    }
+  }
+
+  // Ein- und Ausblenden über ~¼ Sekunde statt hart an/aus
+  mouseActive.value += (target - mouseActive.value) * Math.min(1, delta * 4);
+}
+
+// ============================================================
+// 13 · Tasten: H (Panel), F (Format), S (Screenshot)
 // ============================================================
 
 let screenshotRequested = false;
@@ -272,15 +412,17 @@ function saveScreenshot() {
 }
 
 // ============================================================
-// 11 · Animation-Loop
+// 14 · Animation-Loop
 // ============================================================
 
 const timer = new THREE.Timer();
 
 renderer.setAnimationLoop((timestamp) => {
   timer.update(timestamp);
-  phase.value += timer.getDelta() * params.speed.value;
+  const delta = timer.getDelta();
+  phase.value += delta * params.speed.value;
 
+  updateMagnet(delta);
   controls.update();
   renderPipeline.render();
 
