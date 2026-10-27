@@ -1,0 +1,37 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #050505;
+}
+
+#scene {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#scene.is-gripping {
+  cursor: grabbing;
+}
+
+/* Das einzige Wort: klein, gesperrt, kaum da */
+#word {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  font: 500 9px/1 "Helvetica Neue", Helvetica, Arial, sans-serif;
+  letter-spacing: 0.42em;
+  color: #6b6a66;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lil-gui.root {
+  --background-color: rgba(10, 10, 10, 0.88);
+}
