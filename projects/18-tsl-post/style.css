@@ -18,10 +18,12 @@ body {
   outline: 1px solid #141414;
 }
 
+/* oben neben stats.js, damit unten der Untertitel frei bleibt */
 #hint {
   position: fixed;
-  right: 16px;
-  bottom: 14px;
+  left: 96px;
+  top: 14px;
+  max-width: calc(100vw - 96px - 270px);
   letter-spacing: 0.04em;
 }
 
@@ -76,6 +78,24 @@ body {
 /* Die Beschriftungen hängen an der Trennlinie (--split kommt aus JS) */
 #split-ui .left { right: calc(100% - var(--split, 50%) + 12px); }
 #split-ui .right { left: calc(var(--split, 50%) + 12px); }
+
+/* Scroll-Modus (Taste G): Seite scrollt, Canvas bleibt mittig stehen */
+html.scroll-mode,
+html.scroll-mode body {
+  height: auto;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+html.scroll-mode body { display: block; }
+
+html.scroll-mode #scene {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+}
+
+#scroll-track { height: 500vh; }
 
 /* Hinweis, wenn kein WebGPU da ist */
 #notice {

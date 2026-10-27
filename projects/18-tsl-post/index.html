@@ -10,6 +10,9 @@
   <body>
     <canvas id="scene"></canvas>
 
+    <!-- Scroll-Modus (Taste G): macht die Seite 5 Bildschirme hoch, ScrollTrigger misst darüber -->
+    <div id="scroll-track" hidden></div>
+
     <!-- Beschriftung für den Split-Screen (Taste V), liegt exakt über dem Canvas -->
     <div id="split-ui" hidden>
       <span class="side left">ohne</span>
@@ -22,7 +25,7 @@
       <div id="chain"></div>
     </div>
 
-    <div id="hint">1–5 Presets · P Autoplay · V Vergleich · F Format · S Screenshot · H Panel · C Untertitel</div>
+    <div id="hint">1–5 Presets · P Autoplay · G Scroll · A Mikro · K Kick · Audio reinziehen · V Vergleich · F Format · S Screenshot · H Panel · C Untertitel</div>
     <div id="notice" hidden></div>
     <div id="badge"></div>
     <script type="module" src="./main.js"></script>

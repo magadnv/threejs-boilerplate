@@ -21,7 +21,7 @@
 //
 // Kette in diesem Projekt (Abschnitt 5 · buildChain):
 //   scenePass → Outline → DOF → Bloom → Aberration → Tone Mapping
-//     → Grading → Posterize → Pixel/Dither → VHS → Grain → Vignette
+//     → Grading → Posterize → Pixel/Dither → VHS → Audio-Glitch → Grain → Vignette
 //     → Letterbox → Split-Vergleich → Output
 
 import * as THREE from "three/webgpu";
@@ -71,6 +71,10 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import GUI from "lil-gui";
 import Stats from "stats.js";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+gsap.registerPlugin(ScrollTrigger);
 
 // ============================================================
 // 1 · SETUP – Renderer, Szene, Kamera
@@ -279,8 +283,10 @@ function param(key, value, min, max, step, label) {
   return node;
 }
 
-function effect(key, label, keys) {
-  effects[key] = { key, label, keys, on: false, inGraph: false, mix: uniform(0) };
+// independent: Presets lassen den Effekt in Ruhe (Glitch hängt am Audio, nicht am Look)
+function effect(key, label, keys, { independent = false } = {}) {
+  // level: wie weit „an“ (1 = voll). Nur der Scroll-Modus setzt Zwischenwerte.
+  effects[key] = { key, label, keys, independent, on: false, level: 1, inGraph: false, mix: uniform(0) };
   return effects[key].mix;
 }
 
@@ -291,6 +297,9 @@ const uFar = uniform(camera.far);
 const uFocus = uniform(9); // Abstand Kamera → Knoten, jeden Frame neu
 const uSplitOn = uniform(0);
 const uSplit = uniform(0.5);
+const uBass = uniform(0); // Bass-Pegel 0..1 aus dem Audio-Analyser
+const uKick = uniform(0); // springt bei jedem Kick auf 1 und klingt schnell ab
+const uGlitchSeed = uniform(0); // neue Zufallszahl pro Kick → jedes Mal andere Streifen
 
 // ============================================================
 // 4 · EFFEKTE – je ein Abschnitt, je ein Node
@@ -484,6 +493,35 @@ const vhsFx = Fn(([tex]) => {
 });
 
 // ------------------------------------------------------------
+// 4.8b · Audio-Glitch – eigene Fn(), gesteuert vom Bass (Abschnitt 8)
+// ------------------------------------------------------------
+// JavaScript hört per Web Audio auf den Bass und schreibt bei jedem Kick
+// uKick = 1 (klingt dann in ~0,3 s ab). Der Shader macht daraus:
+// - Block-Versatz: das Bild wird in waagerechte Streifen geteilt, ein Teil
+//   davon springt seitlich weg – welche, entscheidet hash() mit neuem Seed
+// - RGB-Split: Rot und Blau fliegen kurz auseinander
+// - Blitz: ein Hauch Helligkeit auf dem Schlag
+// Zusätzlich pumpt der Bass-Pegel (uBass) die Bloom-Stärke (siehe Kette).
+const mGlitch = effect("glitch", "Audio-Glitch", ["glitchAmount", "glitchBlocks", "glitchSplit", "audioBloom"], { independent: true });
+const uGlitchAmount = param("glitchAmount", 1, 0, 2, 0.01, "Stärke");
+const uGlitchBlocks = param("glitchBlocks", 18, 4, 60, 1, "Streifen");
+const uGlitchSplit = param("glitchSplit", 0.012, 0, 0.04, 0.0005, "RGB-Split");
+const uAudioBloom = param("audioBloom", 0.8, 0, 4, 0.01, "Bass → Bloom");
+
+const glitchFx = Fn(([tex]) => {
+  const k = uKick.mul(uGlitchAmount).mul(mGlitch);
+  const st = uv();
+  const stripe = floor(st.y.mul(uGlitchBlocks));
+  const r = hash(stripe.add(uGlitchSeed.mul(61)));
+  const jumps = step(0.6, r); // ~40 % der Streifen springen
+  const shift = r.sub(0.5).mul(0.3).mul(jumps).mul(k);
+  const p = vec2(st.x.add(shift), st.y);
+  const split = vec2(uGlitchSplit.mul(k), 0);
+  const c = vec3(tex.sample(p.add(split)).r, tex.sample(p).g, tex.sample(p.sub(split)).b);
+  return vec4(c.add(k.mul(0.06)), 1);
+});
+
+// ------------------------------------------------------------
 // 4.9 · Film Grain – eigene Fn() mit time
 // ------------------------------------------------------------
 // rand() liefert pro Pixel eine Zufallszahl. Weil time mit in die Koordinate
@@ -572,7 +610,9 @@ function buildChain() {
   // --- HDR: lineares Licht, Werte über 1 möglich ---
   if (use("outline")) color = outlineFx(color);
   if (use("dof")) color = keep(dof(asTexture(color), sceneViewZ, uFocus, uDofFocalLength, uDofBokeh.mul(mDof)));
-  if (use("bloom")) color = color.add(keep(bloom(color, uBloomStrength.mul(mBloom), uBloomRadius, uBloomThreshold)));
+  // Bass pumpt den Bloom: Stärke × (1 + Bass × Faktor), nur solange der Glitch an ist
+  const bassPump = uBass.mul(uAudioBloom).mul(mGlitch).add(1);
+  if (use("bloom")) color = color.add(keep(bloom(color, uBloomStrength.mul(mBloom).mul(bassPump), uBloomRadius, uBloomThreshold)));
   if (use("ca")) color = chromaticAberration(asTexture(color), uCaStrength.mul(mCa), vec2(0.5), float(1.1));
 
   // --- Tone Mapping (ACES) + sRGB: ab hier Bildschirmfarben 0..1 ---
@@ -583,6 +623,7 @@ function buildChain() {
   if (use("posterize")) color = posterFx(color);
   if (use("pixel")) color = pixelFx(asTexture(color));
   if (use("vhs")) color = vhsFx(asTexture(color));
+  if (use("glitch")) color = glitchFx(asTexture(color));
   if (use("grain")) color = grainFx(color);
   if (use("vignette")) color = vignetteFx(color);
   if (use("letterbox")) color = letterboxFx(color);
@@ -684,14 +725,45 @@ function applyPreset(index) {
   currentPreset = index;
   view.preset = index;
   const preset = presets[index];
-  for (const e of Object.values(effects)) e.on = preset.effects.includes(e.key);
+  for (const e of Object.values(effects)) {
+    if (e.independent) continue;
+    e.on = preset.effects.includes(e.key);
+    e.level = 1;
+  }
   for (const [key, p] of Object.entries(params)) {
     const value = preset.values[key] ?? p.initial;
     if (p.isColor) p.target.copy(value);
     else p.target = value;
   }
   gui.controllersRecursive().forEach((c) => c.updateDisplay());
-  document.querySelector("#preset-name").textContent = `${index + 1} · ${preset.name}`;
+  showPresetName(index);
+}
+
+function showPresetName(index) {
+  document.querySelector("#preset-name").textContent = `${index + 1} · ${presets[index].name}`;
+}
+
+// Zwei Presets stufenlos mischen (t = 0 → a, t = 1 → b). Für den Scroll-Modus:
+// Effekte bekommen ein level zwischen 0 und 1, Regler einen Wert dazwischen.
+function blendPresets(a, b, t) {
+  const A = presets[a];
+  const B = presets[b];
+  for (const e of Object.values(effects)) {
+    if (e.independent) continue;
+    e.level = (A.effects.includes(e.key) ? 1 - t : 0) + (B.effects.includes(e.key) ? t : 0);
+    e.on = e.level > 0.001;
+  }
+  for (const [key, p] of Object.entries(params)) {
+    const va = A.values[key] ?? p.initial;
+    const vb = B.values[key] ?? p.initial;
+    if (p.isColor) p.target.copy(va).lerp(vb, t);
+    else p.target = va + (vb - va) * t;
+  }
+  const nearest = t < 0.5 ? a : b;
+  if (nearest !== currentPreset) {
+    currentPreset = nearest;
+    showPresetName(nearest);
+  }
 }
 
 // Untertitel: die sichtbare Kette. Im Graphen können mehr Effekte stecken
@@ -710,7 +782,13 @@ function updateChainCaption() {
 
 const gui = new GUI({ title: "TSL Post-Processing" });
 
-const view = { preset: 0, autoRotate: true, compare: () => toggleSplit(), autoplay: () => toggleAutoplay() };
+const view = {
+  preset: 0,
+  autoRotate: true,
+  compare: () => toggleSplit(),
+  autoplay: () => toggleAutoplay(),
+  scroll: () => toggleScrollMode(),
+};
 gui
   .add(view, "preset", Object.fromEntries(presets.map((p, i) => [`${i + 1} · ${p.name}`, i])))
   .name("Preset")
@@ -721,11 +799,13 @@ gui
 gui.add(view, "autoRotate").name("Kamera dreht").onChange((v) => (controls.autoRotate = v));
 gui.add(view, "compare").name("Vergleich (V)");
 gui.add(view, "autoplay").name("Autoplay (P)");
+gui.add(view, "scroll").name("Scroll-Modus (G)");
 
 // Ein Ordner pro Effekt, in Ketten-Reihenfolge. „an“ blendet weich ein/aus,
 // die Regler setzen Zielwerte (der Uniform gleitet hinterher).
+const folders = {};
 for (const e of Object.values(effects)) {
-  const folder = gui.addFolder(e.label).close();
+  const folder = (folders[e.key] = gui.addFolder(e.label).close());
   folder.add(e, "on").name("an");
   for (const key of e.keys) {
     const p = params[key];
@@ -733,6 +813,12 @@ for (const e of Object.values(effects)) {
     else folder.add(p, "target", p.min, p.max, p.step).name(p.label);
   }
 }
+
+// Audio-Steuerung gehört in den Glitch-Ordner (Funktionen folgen in Abschnitt 8)
+const audioSettings = { threshold: 0.08, mic: () => toggleAudio(), kick: () => manualKick() };
+folders.glitch.add(audioSettings, "threshold", 0.02, 0.3, 0.005).name("Kick-Schwelle");
+folders.glitch.add(audioSettings, "mic").name("Mikro an/aus (A)");
+folders.glitch.add(audioSettings, "kick").name("Kick testen (K)");
 
 // stats.js: FPS. Effekt an/aus schalten und zusehen, was er kostet.
 const stats = new Stats();
@@ -880,6 +966,143 @@ function saveScreenshot() {
   showBadge("PNG gespeichert");
 }
 
+// --- Scroll-Modus (Taste G): GSAP ScrollTrigger mischt die Presets ---
+// Die Seite wird 5 Bildschirme hoch, der Canvas bleibt fixiert stehen.
+// gsap.to() animiert scrollState.progress von 0 auf 1 – aber nicht nach Zeit,
+// sondern nach Scrollposition (scrub). scrub: 1 heißt: der Wert läuft der
+// Scrollposition 1 Sekunde weich hinterher, statt hart mitzuspringen.
+const scrollTrack = document.querySelector("#scroll-track");
+const scrollState = { active: false, progress: 0, tween: null };
+
+function toggleScrollMode() {
+  scrollState.active = !scrollState.active;
+  document.documentElement.classList.toggle("scroll-mode", scrollState.active);
+  scrollTrack.hidden = !scrollState.active;
+  controls.enableZoom = !scrollState.active; // Mausrad gehört jetzt der Seite
+
+  if (scrollState.active) {
+    stopAutoplay();
+    window.scrollTo(0, 0);
+    scrollState.progress = 0;
+    scrollState.tween = gsap.to(scrollState, {
+      progress: 1,
+      ease: "none",
+      scrollTrigger: { trigger: scrollTrack, start: "top top", end: "bottom bottom", scrub: 1 },
+    });
+  } else {
+    scrollState.tween.scrollTrigger.kill();
+    scrollState.tween.kill();
+    applyPreset(currentPreset);
+  }
+
+  resize();
+  showBadge(scrollState.active ? "Scroll-Modus: scrollen ↓" : "Scroll-Modus aus");
+}
+
+function updateScrollMode() {
+  if (!scrollState.active) return;
+  const f = scrollState.progress * (presets.length - 1);
+  const i = Math.min(Math.floor(f), presets.length - 2);
+  blendPresets(i, i + 1, f - i);
+}
+
+// --- Audio (Taste A = Mikro, oder Audiodatei ins Fenster ziehen) ---
+// Web Audio: Quelle → AnalyserNode. Der Analyser zerlegt den Klang per FFT
+// in Frequenzbänder. Wir lesen nur die tiefen Bänder (30–150 Hz = Bass/Kick).
+// Kick = der Bass springt deutlich über seinen eigenen gleitenden Mittelwert.
+const audio = { ctx: null, analyser: null, data: null, source: null, element: null, stream: null, average: 0, kick: 0, cooldown: 0 };
+
+function ensureAudio() {
+  if (!audio.ctx) {
+    audio.ctx = new AudioContext();
+    audio.analyser = audio.ctx.createAnalyser();
+    audio.analyser.fftSize = 2048; // ~23 Hz pro Band bei 48 kHz
+    audio.analyser.smoothingTimeConstant = 0.4;
+    audio.data = new Uint8Array(audio.analyser.frequencyBinCount);
+  }
+  audio.ctx.resume();
+}
+
+function stopAudio() {
+  audio.source?.disconnect();
+  audio.element?.pause();
+  audio.stream?.getTracks().forEach((track) => track.stop());
+  Object.assign(audio, { source: null, element: null, stream: null });
+}
+
+async function toggleAudio() {
+  if (audio.source) {
+    stopAudio();
+    effects.glitch.on = false;
+    showBadge("Audio aus");
+    return;
+  }
+  ensureAudio();
+  try {
+    audio.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    showBadge("Kein Mikrofon-Zugriff");
+    return;
+  }
+  audio.source = audio.ctx.createMediaStreamSource(audio.stream);
+  audio.source.connect(audio.analyser); // nicht an die Lautsprecher → keine Rückkopplung
+  effects.glitch.on = true;
+  showBadge("Mikro an – Glitch hört zu");
+}
+
+function playAudioFile(file) {
+  ensureAudio();
+  stopAudio();
+  audio.element = new Audio(URL.createObjectURL(file));
+  audio.element.loop = true;
+  audio.source = audio.ctx.createMediaElementSource(audio.element);
+  audio.source.connect(audio.analyser);
+  audio.source.connect(audio.ctx.destination); // Datei wollen wir auch hören
+  audio.element.play();
+  effects.glitch.on = true;
+  showBadge(`♪ ${file.name}`);
+}
+
+window.addEventListener("dragover", (event) => event.preventDefault());
+window.addEventListener("drop", (event) => {
+  event.preventDefault();
+  const file = event.dataTransfer.files[0];
+  if (file?.type.startsWith("audio/")) playAudioFile(file);
+  else showBadge("Bitte eine Audiodatei (mp3, wav …)");
+});
+
+function triggerKick() {
+  audio.kick = 1;
+  audio.cooldown = 0.12; // höchstens ~8 Kicks pro Sekunde
+  uGlitchSeed.value = Math.floor(Math.random() * 1000);
+}
+
+function manualKick() {
+  effects.glitch.on = true;
+  triggerKick();
+}
+
+function updateAudio(delta) {
+  audio.cooldown -= delta;
+  let bass = 0;
+
+  if (audio.source) {
+    audio.analyser.getByteFrequencyData(audio.data);
+    const hzPerBand = audio.ctx.sampleRate / audio.analyser.fftSize;
+    const from = Math.max(1, Math.round(30 / hzPerBand));
+    const to = Math.max(from + 1, Math.round(150 / hzPerBand));
+    for (let i = from; i < to; i++) bass += audio.data[i];
+    bass /= (to - from) * 255;
+
+    audio.average += (bass - audio.average) * (1 - Math.exp(-delta * 2.5));
+    if (bass - audio.average > audioSettings.threshold && bass > 0.3 && audio.cooldown <= 0) triggerKick();
+  }
+
+  audio.kick *= Math.exp(-delta * 9);
+  uKick.value = audio.kick;
+  uBass.value += (bass - uBass.value) * (1 - Math.exp(-delta * 12));
+}
+
 // --- Tasten ---
 window.addEventListener("keydown", (event) => {
   if (event.target instanceof HTMLInputElement) return;
@@ -890,6 +1113,9 @@ window.addEventListener("keydown", (event) => {
     applyPreset(Number(k) - 1);
   }
   if (k === "p") toggleAutoplay();
+  if (k === "g") toggleScrollMode();
+  if (k === "a") toggleAudio();
+  if (k === "k") manualKick();
   if (k === "v") toggleSplit();
   if (k === "h") document.body.classList.toggle("clean");
   if (k === "c") document.body.classList.toggle("no-caption");
@@ -916,11 +1142,13 @@ function updateEffects(delta) {
   let changed = false;
 
   for (const e of Object.values(effects)) {
-    const target = e.on ? 1 : 0;
+    const target = e.on ? e.level : 0;
     e.mix.value += (target - e.mix.value) * ease;
     if (Math.abs(target - e.mix.value) < 0.002) e.mix.value = target;
 
-    const needed = e.on || e.mix.value > 0 || (autoplay.active && usedByPresets.has(e.key));
+    // Autoplay + Scroll: alle Preset-Effekte vorladen, damit nichts mitten drin neu kompiliert
+    const preload = (autoplay.active || scrollState.active) && usedByPresets.has(e.key);
+    const needed = e.on || e.mix.value > 0 || preload;
     if (needed !== e.inGraph) {
       e.inGraph = needed;
       changed = true;
@@ -954,6 +1182,8 @@ renderer.setAnimationLoop((timestamp) => {
   animateScene(t);
   controls.update(delta);
   updateAutoplay(delta);
+  updateScrollMode();
+  updateAudio(delta);
   updateEffects(delta);
 
   // DOF-Fokus = Abstand zum Knoten entlang der Blickrichtung
