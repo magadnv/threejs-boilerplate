@@ -1,0 +1,118 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #060608;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  font: 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  color: #8a8a8a;
+}
+
+/* Feste Formate (1:1, 16:9) werden per JS auf die Fensterhöhe skaliert */
+#scene {
+  display: block;
+  outline: 1px solid #141414;
+}
+
+#hint {
+  position: fixed;
+  right: 16px;
+  bottom: 14px;
+  letter-spacing: 0.04em;
+}
+
+/* Untertitel: liegt per JS links unten im Canvas, damit er mit ins Bildformat passt */
+#caption {
+  position: fixed;
+  pointer-events: none;
+  color: #fff;
+  transition: opacity 0.4s;
+}
+
+#preset-name {
+  font: 600 22px/1.1 ui-sans-serif, system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+#preset-name::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 10px 3px 0;
+  border-radius: 50%;
+  background: #cf1830;
+}
+
+#chain {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+#split-ui {
+  position: fixed;
+  pointer-events: none;
+}
+
+#split-ui .side {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Die Beschriftungen hängen an der Trennlinie (--split kommt aus JS) */
+#split-ui .left { right: calc(100% - var(--split, 50%) + 12px); }
+#split-ui .right { left: calc(var(--split, 50%) + 12px); }
+
+/* Hinweis, wenn kein WebGPU da ist */
+#notice {
+  position: fixed;
+  top: 14px;
+  left: 16px;
+  max-width: 340px;
+  padding: 8px 12px;
+  border-left: 2px solid #cf1830;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ddd;
+}
+
+#badge {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+
+#badge.show { opacity: 1; }
+
+/* Taste H: Panel, Stats und Hinweise weg – nur Bild (+ Untertitel) bleibt */
+body.clean #hint,
+body.clean #notice,
+body.clean #badge,
+body.clean .lil-gui,
+body.clean #stats {
+  display: none !important;
+}
+
+/* Taste C: Untertitel aus */
+body.no-caption #caption { opacity: 0; }

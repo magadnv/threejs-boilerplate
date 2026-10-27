@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Three.js · TSL Post-Processing</title>
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <!-- Beschriftung für den Split-Screen (Taste V), liegt exakt über dem Canvas -->
+    <div id="split-ui" hidden>
+      <span class="side left">ohne</span>
+      <span class="side right">mit TSL-Nodes</span>
+    </div>
+
+    <!-- Untertitel fürs Video: Preset-Name + aktive Kette (Taste C) -->
+    <div id="caption">
+      <div id="preset-name"></div>
+      <div id="chain"></div>
+    </div>
+
+    <div id="hint">1–5 Presets · P Autoplay · V Vergleich · F Format · S Screenshot · H Panel · C Untertitel</div>
+    <div id="notice" hidden></div>
+    <div id="badge"></div>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
