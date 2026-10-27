@@ -180,6 +180,14 @@
       .arrow span { display: block; line-height: 1; }
       .arrow.stood { background: #efe2d2; color: #b8a28d; }
       .arrow.fell { background: var(--gold); color: var(--ink); box-shadow: 0 5px 0 #c99a00; }
+
+      /* ---------- Level 5: Zieh- und Schubs-Knopf ---------- */
+      .pp {
+        position: fixed; bottom: calc(28px + var(--safe-bottom)); min-width: 170px; padding: 20px 28px;
+        font-size: clamp(24px, 4.4vw, 32px); opacity: 0; pointer-events: none; z-index: 3;
+      }
+      #bPull { left: calc(20px + env(safe-area-inset-left, 0px)); background: var(--white); color: var(--red); box-shadow: 0 6px 0 #e7d3bd; }
+      #bPush { right: calc(20px + env(safe-area-inset-right, 0px)); }
       #tagBase { color: var(--ok); }
     </style>
   </head>
@@ -216,6 +224,8 @@
     <div id="tagNarrow" class="tag">schmal</div>
     <div id="tagWide" class="tag">breit</div>
     <div id="arrows"></div>
+    <button id="bPull" class="btn pp">← Zieh</button>
+    <button id="bPush" class="btn pp">Schubs →</button>
 
     <div id="card"><div class="inner">
       <div class="seal" hidden>🪨</div>
@@ -226,6 +236,7 @@
         <button data-level="2"><b>Level 2</b><span>Die schwache Seite</span></button>
         <button data-level="3"><b>Level 3</b><span>Der richtige Moment</span></button>
         <button data-level="4"><b>Level 4</b><span>Mitten im Schritt</span></button>
+        <button data-level="5"><b>Level 5</b><span>Ziehen statt schubsen</span></button>
       </div>
       <button class="btn main"></button><button class="btn alt" hidden></button>
     </div></div>
@@ -246,6 +257,10 @@
                   Beim Schritt kommen die Füße eng zusammen → b klein → leichter
                   Schubs reicht. Steht er breit, hält er dagegen und macht sich
                   noch breiter.)
+         Level 5: „Drückt er zurück? Dann zieh!“ (Du hältst Bo am Ärmel. Schubst du,
+                  fängt er sich und lehnt sich dann zu dir (c < 0) – jetzt ist
+                  seine Kante zu dir ganz nah: ein kleiner Zug wirft ihn.
+                  Gegen deine Kraft fängt er sich immer. Brücke zu Kuzushi/Teens.)
 
          Physik: Die Figur ist ein starrer Körper, der um die Kante seiner Basis
          kippt (Housner-Kippblock). Pro Achse (links/rechts = x, vorne/hinten = z):
@@ -491,12 +506,16 @@
         z: { phi: 0, w: 0, lie: Math.PI / 2 },
         fallen: false, frozen: false, timeScale: 1,
         pending: null, // laufender Schubs, wartet auf „steht“ oder „fällt“
+        t: 0,          // Spielzeit (läuft in Zeitlupe langsamer) – für Bos Reaktion in Level 5
       };
 
       // Level 3: Bo verlagert seinen Oberkörper vor/zurück (lokal z)
       const lean = { z: 0, phase: 0, period: 2.4, on: false, cue: true };
       // Level 4: Bo läuft seitlich, x = Position auf der Matte
       const walk = { on: false, x: 0, phase: 0, period: 2.6, cue: true, hold: 0, dir: 1, autoAt: null };
+      // Level 5: Bo reagiert auf dich – idle → delay → hold → recover (wie bei den Teens)
+      const bo5 = { on: false, phase: "idle", timer: 0, ldir: 0, target: 0, last: -9, hold: 1.5, cue: true };
+      lean.x = 0;
 
       // Winkel, bei dem Bauch/Kopf den Boden berühren (damit sie schön liegt)
       function lieAngle(b, alpha, rBody) {
@@ -540,7 +559,12 @@
         phys.z.lie = lieAngle(bz, Math.atan2(bz, h), 0.48);
         const n = Math.ceil(dt / (1 / 300));
         for (let i = 0; i < n && !phys.fallen; i++) {
-          stepAxis(phys.x, bx, h, dt / n);
+          phys.t += dt / n;
+          if (level === 5) updateBo5(dt / n);
+          // Level 5: gegen deine Kraft fängt er sich – nur wenn du MIT seiner Lehne gehst, nicht
+          const catchX = level === 5 && !phys.x.over && Math.abs(lean.x) > 0.1 && phys.t - bo5.last > 0.7 ? Math.sign(lean.x) : 0;
+          if (level === 5 && bo5.phase === "delay") phys.x.w *= 1 - (4 * dt) / n; // er fängt sich nach deinem Schubs
+          stepAxis(phys.x, bx, h, dt / n, lean.x, catchX);
           stepAxis(phys.z, bz, h, dt / n, lean.z, level === 3 ? 1 : 0);
         }
       }
@@ -550,7 +574,8 @@
         const { bx, bz, h } = geo();
         const len = Math.hypot(dirX, dirZ) || 1;
         const k = PUSH * strength;
-        phys.x.w += (dirX / len) * k * h / (bx * bx + h * h);
+        const bxEff = Math.max(0.02, bx - Math.sign(dirX) * lean.x); // Lehne zählt mit
+        phys.x.w += (dirX / len) * k * h / (bxEff * bxEff + h * h);
         const bzEff = Math.max(0.02, bz - Math.sign(dirZ) * lean.z); // Lehne zählt mit
         phys.z.w += (dirZ / len) * zPush * k * h / (bzEff * bzEff + h * h);
         squash.vel += 2.2 * strength;
@@ -674,7 +699,7 @@
 
       function updateIndicator(time) {
         const { bx, bz, h } = geo();
-        comWorld.set(0, h, lean.z).applyMatrix4(figure.matrix);
+        comWorld.set(lean.x, h, lean.z).applyMatrix4(figure.matrix);
         comGroup.position.copy(comWorld);
         const pulse = 1 + Math.sin(time * 5) * 0.08;
         comBall.scale.setScalar(pulse * (explainFocus ? 1.4 : 1));
@@ -684,7 +709,7 @@
         const rx = comWorld.x - walk.x;
         const lx = rx * cy - comWorld.z * sy, lz = rx * sy + comWorld.z * cy;
         inside = Math.abs(lx) <= bx + 1e-4 && Math.abs(lz) <= bz + 1e-4;
-        const cue = (level === 3 && lean.cue && inWindow()) || (level === 4 && walk.cue && inStep());
+        const cue = (level === 3 && lean.cue && inWindow()) || (level === 4 && walk.cue && inStep()) || (level === 5 && bo5.cue && inLean5());
         const col = !inside ? colOut : cue ? colWarn : colOk;
         dotMat.color.copy(col);
         groundRing.material.color.copy(col);
@@ -987,7 +1012,7 @@
           resetScene();
           showCard({
             seal: true, title: "Der Fels", text: "Welches Level spielst du?",
-            levels: (n) => [flow.level1, flow.level2, flow.level3, flow.level4][n - 1](),
+            levels: (n) => [flow.level1, flow.level2, flow.level3, flow.level4, flow.level5][n - 1](),
           });
         },
 
@@ -1349,8 +1374,110 @@
             seal: true, sealIcon: "👣",
             title: "Schubs, wenn er einen Schritt macht.",
             text: "Schau beim Training auf die Füße: Stehen sie eng, ist dein Partner leicht!",
+            button: "Level 5!",
+            onClick: flow.level5,
+            button2: "Level wählen",
+            onClick2: flow.start,
+          });
+        },
+
+        // ===== LEVEL 5: Ziehen statt schubsen =====
+        level5() {
+          resetScene();
+          setLevel(5);
+          showCard({
+            seal: true, sealIcon: "🤝", title: "Level 5", text: "Bo ist stark. Kannst du ihn trotzdem umwerfen?", button: "Los!",
+            onClick: () => flow.roundL5(0),
+          });
+        },
+
+        roundL5(r) {
+          const cfg = [{ hold: 1.6, cue: true }, { hold: 1.1, cue: true }, { hold: 1.4, cue: false }][r];
+          Object.assign(bo5, { on: true, hold: cfg.hold, cue: cfg.cue });
+          actions5 = [];
+          setStars(0);
+          gsap.to("#stars", { opacity: r > 0 ? 1 : 0, duration: 0.3 });
+          allowPush = true;
+          let pulls = 0, pushes = 0;
+          // Runde 0: erst nur Schubsen – der Zieh-Knopf kommt, wenn Bo zurückdrückt
+          showPP(true, r > 0);
+          say(["Schubs Bo!", "Schubs – und wenn es gelb wird: zieh!", "Ohne Gelb – spür, wann er zurückdrückt!"][r]);
+          onAct5 = (dir) => {
+            if (dir > 0) pushes++;
+            else pulls++;
+            if (r === 0 && dir > 0 && pushes === 1) {
+              until(() => bo5.phase === "hold").then(() => {
+                if (level !== 5 || phys.fallen) return;
+                say("Er drückt zurück! Jetzt zieh!");
+                showPP(true, true);
+              });
+            }
+          };
+          onStand = (p) => {
+            if (p.dir < 0) say(pulls % 2 ? "Zu früh! Erst schubsen, dann warten." : "Er hält dagegen. Schubs zuerst!");
+            else if (r > 0 || pushes > 1) say(pushes % 2 ? "Er bleibt stehen. Jetzt warten …" : "Gegen seine Kraft ist es schwer!");
+          };
+          onFall = async () => {
+            allowPush = false;
+            showPP(false);
+            bo5.on = false;
+            const stars = pulls <= 1 ? 3 : pulls <= 3 ? 2 : 1;
+            if (r > 0) { setStars(stars); starEls.forEach((_, k) => k < stars && gsap.fromTo(starEls[k], { scale: 0.3 }, { scale: 1, duration: 0.5, delay: k * 0.12, ease: "back.out(3)" })); }
+            sfx.ding();
+            say(pulls === 1 ? "Bumm! Mit seiner eigenen Kraft!" : "Bumm! Erwischt!");
+            lastThrow5 = [...actions5];
+            await wait(1500);
+            if (r === 0) {
+              showCard({ title: "Warum ging es so leicht?", button: "Zeig's mir", onClick: flow.explainL5 });
+            } else if (r < 2) {
+              await standUp();
+              resetBo5();
+              flow.roundL5(r + 1);
+            } else {
+              gsap.to("#stars", { opacity: 0, duration: 0.3 });
+              flow.endL5();
+            }
+          };
+        },
+
+        // Zeitlupe: dein Schubs, seine Lehne zu dir, dein kleiner Zug
+        async explainL5() {
+          await standUp();
+          resetBo5();
+          bo5.on = true;
+          bo5.cue = true;
+          say("Schau auf die Kugel!");
+          explainFocus = true;
+          gsap.to(tagCom, { opacity: 1, duration: 0.3 });
+          await wait(800);
+          slowMo(true);
+          // nur der Wurf selbst: letzter Schubs vor dem Zug + der Zug
+          const lastPush = lastThrow5.slice(0, -1).filter((a) => a.dir > 0).at(-1);
+          const seq = lastPush ? [lastPush, lastThrow5.at(-1)] : [lastThrow5.at(-1)];
+          replay5 = { start: phys.t, items: seq.map((a) => ({ ...a, t: a.t - seq[0].t })) };
+          onStand = null;
+          onFall = async () => {
+            slowMo(false);
+            bo5.on = false;
+            say("Er hat sich zu dir gelehnt – du musstest nur noch ziehen!");
+            await wait(900);
+            showAction("Weiter", async () => {
+              explainFocus = false;
+              gsap.to(tagCom, { opacity: 0, duration: 0.3 });
+              await standUp();
+              resetBo5();
+              flow.roundL5(1);
+            });
+          };
+        },
+
+        endL5() {
+          showCard({
+            seal: true, sealIcon: "🤝",
+            title: "Drückt er zurück? Dann zieh!",
+            text: "Probier's mit deinem Trainer: Schubs leicht, spür wie er zurückdrückt – und zieh!",
             button: "Nochmal",
-            onClick: flow.level4,
+            onClick: flow.level5,
             button2: "Level wählen",
             onClick2: flow.start,
           });
@@ -1388,6 +1515,7 @@
         applyPose();
         stepSway(dt * phys.timeScale);
         stepWalk(dt * phys.timeScale);
+        updateGrip5();
 
         stepPhysics(dt * phys.timeScale);
         stepSquash(dt * Math.max(phys.timeScale, 0.35));
@@ -1454,6 +1582,10 @@
         if (n >= 2) setPose(1.0, 0.5, true);
         if (n === 3) pose.yaw = -Math.PI / 2; // Bo schaut zu dir (nach links), wackelt also links ↔ rechts
         if (n === 4) setPose(1.2, 0.5, true);
+        if (n === 5) setPose(1.0, 0.5, true);
+        head.rotation.y = n === 5 ? -0.6 : 0; // Level 5: Bo schaut zu dir
+        gripLine.visible = gripHand.visible = n === 5;
+        showPP(false);
         walk.on = false;
         walk.x = 0;
       }
@@ -1473,6 +1605,10 @@
         lean.z = 0;
         autoPushAt = null;
         Object.assign(walk, { on: false, x: 0, phase: 0, hold: 0, autoAt: null, dir: 1 });
+        Object.assign(bo5, { on: false, phase: "idle", timer: 0, ldir: 0, target: 0, last: -9 });
+        lean.x = 0;
+        replay5 = null;
+        showPP(false);
         hideAction();
         hideHand();
         showSliders(false);
@@ -1585,6 +1721,87 @@
         l4Push(side);
       }
 
+      // ---------- Level 5: Bo reagiert – Schubs, er lehnt sich zu dir, kleiner Zug ----------
+      const LEAN5 = 0.5;      // so weit lehnt er sich gegen dich
+      const S_PUSH5 = 0.8;    // dein Schubs: wirft ihn allein nie
+      const S_PULL5 = 0.6;    // dein Zug: wirft ihn nur, wenn er zu dir lehnt
+      const PULL_WIN = -0.27; // ab dieser Lehne reicht der Zug (gemessen)
+      let actions5 = [], lastThrow5 = [], replay5 = null, onAct5 = null;
+      const inLean5 = () => lean.x <= PULL_WIN && !phys.pending;
+      function resetBo5() {
+        Object.assign(bo5, { phase: "idle", timer: 0, ldir: 0, target: 0, last: -9 });
+        lean.x = 0;
+      }
+      function updateBo5(dt) {
+        if (replay5) {
+          while (replay5.items.length && phys.t - replay5.start >= replay5.items[0].t) act5(replay5.items.shift().dir, false);
+          if (!replay5.items.length) replay5 = null;
+        }
+        if (!bo5.on || phys.x.over) return; // über der Kante: keine Reaktion mehr
+        bo5.timer -= dt;
+        if (bo5.phase === "delay" && bo5.timer <= 0 && Math.abs(phys.x.phi) < 0.03 && Math.abs(phys.x.w) < 0.15) {
+          // er steht wieder stabil → jetzt drückt er zurück
+          Object.assign(bo5, { phase: "hold", timer: bo5.hold, target: bo5.ldir * LEAN5 });
+        } else if (bo5.phase === "hold" && bo5.timer <= 0) {
+          Object.assign(bo5, { phase: "recover", timer: 0.6, target: 0 });
+        } else if (bo5.phase === "recover" && bo5.timer <= 0) {
+          bo5.phase = "idle";
+        }
+        lean.x += (bo5.target - lean.x) * (1 - Math.exp(-dt * 6));
+      }
+      // dir +1 = schubsen (weg von dir), −1 = ziehen (zu dir)
+      function act5(dir, record = true) {
+        if (dir === bo5.ldir && bo5.phase !== "idle") bo5.last = phys.t; // MIT seiner Kraft
+        if (bo5.phase === "idle" || bo5.phase === "recover" || dir === -bo5.ldir) {
+          Object.assign(bo5, { phase: "delay", timer: 0.25, ldir: -dir });
+        }
+        const s = dir > 0 ? S_PUSH5 : S_PULL5;
+        push(dir, 0, s);
+        phys.pending = { strength: s, dir };
+        if (record) actions5.push({ dir, t: phys.t });
+        gsap.fromTo(gripPulse, { v: 1 }, { v: 0, duration: 0.6, ease: "power2.out" });
+      }
+      function userAct5(dir) {
+        ensureAudio();
+        if (level !== 5 || !allowPush || phys.fallen || phys.frozen || replay5) return;
+        act5(dir);
+        onAct5?.(dir);
+      }
+      $("#bPush").addEventListener("click", () => userAct5(1));
+      $("#bPull").addEventListener("click", () => userAct5(-1));
+      function showPP(push, pull = push) {
+        for (const [el, on] of [[$("#bPush"), push], [$("#bPull"), pull]]) {
+          el.style.pointerEvents = on ? "auto" : "none";
+          gsap.to(el, { opacity: on ? 1 : 0, y: on ? 0 : 20, duration: 0.35, ease: "back.out(2)" });
+        }
+      }
+
+      // Dein Griff: rote Linie von links an Bos Ärmel
+      const gripMat = new THREE.MeshStandardMaterial({ color: COLORS.out, emissive: COLORS.out, emissiveIntensity: 0.4, roughness: 0.5 });
+      const gripLine = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 10), gripMat);
+      const gripHand = new THREE.Mesh(ico(0.14, 1), gripMat);
+      gripLine.visible = gripHand.visible = false;
+      scene.add(gripLine, gripHand);
+      const gripAnchor = new THREE.Object3D();
+      gripAnchor.position.set(-0.52, 0.72, 0.18);
+      upper.add(gripAnchor);
+      const gripPulse = { v: 0 };
+      const gripA = new THREE.Vector3(), gripB = new THREE.Vector3();
+      function updateGrip5() {
+        // Lehne sichtbar machen: Oberkörper verschiebt und neigt sich
+        upper.position.x = lean.x * 0.7;
+        upper.rotation.z = -lean.x * 0.5;
+        if (!gripLine.visible) return;
+        figure.updateMatrixWorld(true);
+        gripAnchor.getWorldPosition(gripB);
+        gripA.set(-8, gripB.y * 0.9 + 0.2, 0.4);
+        placeLimb(gripLine, gripA, gripB);
+        const r = 1 + gripPulse.v;
+        gripLine.scale.x = gripLine.scale.z = r;
+        gripHand.position.copy(gripB);
+        gripHand.scale.setScalar(r);
+      }
+
       setPose(0.34, 1, true);
       sWidth.set(0.03);
       sHip.set(1);
@@ -1592,7 +1809,7 @@
       flow.start();
 
       // Zum Testen in der Konsole
-      window.fels = { phys, pose, push, pushWorld, flow, geo, arrowPush, setLevel, lean, l3Push, walk, l4Push };
+      window.fels = { phys, pose, push, pushWorld, flow, geo, arrowPush, setLevel, lean, l3Push, walk, l4Push, bo5, act5, userAct5, dbg5: () => ({ actions5, lastThrow5, replay5 }) };
     </script>
   </body>
 </html>
