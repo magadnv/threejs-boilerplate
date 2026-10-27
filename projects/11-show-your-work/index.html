@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>The Mess Is the Work</title>
+    <meta name="description" content="A study after Austin Kleon's Show Your Work: a red cloud of days draws itself into one endless line, then lets go again." />
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;900&family=Instrument+Serif:ital@1&display=swap"
+    />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/",
+          "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/index.js",
+          "gsap/": "https://cdn.jsdelivr.net/npm/gsap@3.13.0/"
+        }
+      }
+    </script>
+    <style>
+      /* Drei Farben, sonst nichts: Papier, Rot, Tinte */
+      :root {
+        --paper: #f4f1ec;
+        --red: #cf1830;
+        --ink: #0e0e0e;
+        --ar: 1; /* Seitenverhältnis im Record-Modus, per JS gesetzt */
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: "Inter Tight", system-ui, sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+        touch-action: none;
+      }
+
+      /* Die Bühne: normal vollflächig, im Record-Modus festes Format, mittig */
+      .stage {
+        position: fixed;
+        inset: 0;
+        container-type: size;
+        overflow: hidden;
+        cursor: crosshair;
+        background: var(--paper);
+      }
+
+      canvas { display: block; width: 100%; height: 100%; }
+
+      /* Filmkorn + Vignette als CSS-Ebene: billiger als ein Postprocessing-Pass */
+      .grain {
+        position: absolute;
+        inset: -50%;
+        pointer-events: none;
+        opacity: 0.16;
+        mix-blend-mode: multiply;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+        animation: grain 0.6s steps(6) infinite;
+      }
+      @keyframes grain {
+        0% { transform: translate(0, 0); }
+        20% { transform: translate(-3%, 2%); }
+        40% { transform: translate(2%, -4%); }
+        60% { transform: translate(-4%, -1%); }
+        80% { transform: translate(3%, 3%); }
+        100% { transform: translate(0, 0); }
+      }
+      .vignette {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(14, 14, 14, 0.13) 100%);
+      }
+
+      /* Die Botschaft: zwei Zeilen, Groteske gegen kursive Serif */
+      .headline {
+        position: absolute;
+        left: 6cqmin;
+        bottom: 5.5cqmin;
+        margin: 0;
+        font-weight: 900;
+        font-size: 11.5cqmin;
+        line-height: 0.92;
+        letter-spacing: -0.045em;
+        pointer-events: none;
+      }
+      .headline .line { display: block; overflow: hidden; padding-bottom: 0.06em; }
+      .headline .inner { display: inline-block; will-change: transform; }
+      .headline .serif {
+        font-family: "Instrument Serif", Georgia, serif;
+        font-style: italic;
+        font-weight: 400;
+        letter-spacing: -0.02em;
+        color: var(--red);
+      }
+
+      .ui {
+        position: absolute;
+        top: 5.5cqmin;
+        font-size: max(11px, 1.6cqmin);
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        pointer-events: none;
+        font-variant-numeric: tabular-nums;
+      }
+      .ui.left { left: 6cqmin; }
+      .ui.right { right: 6cqmin; text-align: right; opacity: 0.55; }
+      .ui .dot {
+        display: inline-block;
+        width: 0.6em;
+        height: 0.6em;
+        margin-right: 0.6em;
+        border-radius: 50%;
+        background: var(--red);
+        vertical-align: 0.05em;
+      }
+
+      .signature {
+        position: absolute;
+        right: 6cqmin;
+        bottom: 6.5cqmin;
+        font-size: 2.2cqmin;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        display: none;
+        pointer-events: none;
+      }
+
+      /* Record-Modus: festes Format, keine Bedienhinweise, Signatur sichtbar */
+      body.record { background: #000; cursor: none; }
+      body.record .stage {
+        inset: auto;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: min(100vw, calc(100vh * var(--ar)));
+        aspect-ratio: var(--ar);
+        cursor: none;
+      }
+      body.record .ui { display: none; }
+      body.record .signature { display: block; }
+
+      @media (max-width: 600px) {
+        .headline { font-size: 15cqmin; }
+        .ui.right { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage" id="stage">
+      <canvas id="webgl"></canvas>
+      <div class="vignette"></div>
+      <div class="grain"></div>
+
+      <h1 class="headline" aria-label="The mess is the work.">
+        <span class="line"><span class="inner" id="l1">The mess</span></span>
+        <span class="line"><span class="inner serif" id="l2">is the work.</span></span>
+      </h1>
+
+      <div class="ui left"><span class="dot"></span><span id="day">Day 001</span></div>
+      <div class="ui right">Click — share a day<br />R — record 1:1 · Shift R — 16:9</div>
+      <div class="signature">madebymaga.de</div>
+    </div>
+
+    <script type="module">
+      // ---------------------------------------------------------------------------
+      // The Mess Is the Work — Studie 11, nach „Show Your Work!“ (Austin Kleon)
+      //
+      // Idee: Ein roter Haufen aus Punkten (jeder Punkt ein geteilter Tag) zeichnet
+      // sich Strich für Strich zu einer einzigen, endlosen Linie: einem Knoten. Kaum
+      // fertig, löst er sich wieder auf. Der Prozess ist das Stück, nicht das Objekt.
+      //
+      //   1. Alles hängt an einer Loop-Phase (0..1, LOOP Sekunden). Noise, Kamera,
+      //      Aufbau und Text sind periodisch, deshalb loopt die Aufnahme nahtlos.
+      //   2. Eine pausierte GSAP-Timeline beschreibt den Ablauf; wir spulen sie
+      //      jeden Frame per seek() an die Stelle der Phase.
+      //   3. Der Vertex-Shader mischt pro Punkt Chaos-Position und Knoten-Position.
+      //      Die Reihenfolge entlang der Linie (aU) macht daraus einen „Stift“.
+      //   4. Maus drückt Punkte weg, Klick schickt eine Welle und spult Tage vor.
+      //   5. R: Record 1:1, Shift+R: Record 16:9. Esc oder R beendet.
+      // ---------------------------------------------------------------------------
+
+      import * as THREE from "three";
+      import { gsap } from "gsap";
+
+      const LOOP = 10; // Sekunden pro Loop, auch die Länge der Aufnahme
+      const START_OFFSET = 2.2; // erster Frame mitten im Zeichnen: stark im Feed
+      const TAU = Math.PI * 2;
+
+      const PAPER = "#f4f1ec";
+      const RED = "#cf1830";
+      const INK = "#0e0e0e";
+
+      const isTouch = matchMedia("(pointer: coarse)").matches;
+      const COUNT = isTouch ? 22000 : 48000;
+
+      const stage = document.getElementById("stage");
+      const canvas = document.getElementById("webgl");
+      const dayEl = document.getElementById("day");
+
+      // --- Renderer, Szene, Kamera ------------------------------------------------
+
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(PAPER);
+
+      const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+      let camDistance = 16;
+
+      // Farben roh als sRGB-Vektoren: der ShaderMaterial schreibt ohne Umrechnung
+      const toVec3 = (hex) => {
+        const n = parseInt(hex.slice(1), 16);
+        return new THREE.Vector3(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+      };
+
+      // --- Geometrie: Chaos-Wolke und Knoten-Linie ---------------------------------
+
+      // Torus-Knoten (2,3) = Kleeblatt: eine einzige Linie ohne Anfang und Ende
+      function knotPoint(t, out) {
+        const u = t * 2 * TAU; // p = 2 Umläufe
+        const qu = 1.5 * u; // q / p
+        const r = 3.0;
+        out.set(r * (2 + Math.cos(qu)) * 0.5 * Math.cos(u), r * (2 + Math.cos(qu)) * 0.5 * Math.sin(u), r * Math.sin(qu) * 0.5);
+        return out;
+      }
+
+      const chaos = new Float32Array(COUNT * 3);
+      const target = new Float32Array(COUNT * 3);
+      const tubeN = new Float32Array(COUNT * 3);
+      const rand = new Float32Array(COUNT * 3);
+      const aU = new Float32Array(COUNT);
+      const aSize = new Float32Array(COUNT);
+
+      const p1 = new THREE.Vector3(), p2 = new THREE.Vector3();
+      const T = new THREE.Vector3(), N = new THREE.Vector3(), B = new THREE.Vector3(), off = new THREE.Vector3();
+      const TUBE = 0.24;
+
+      for (let i = 0; i < COUNT; i++) {
+        const t = i / COUNT;
+        const i3 = i * 3;
+
+        // Ziel: Punkt auf der Röhre um die Knotenkurve (Frenet-Rahmen wie in TorusKnotGeometry)
+        knotPoint(t, p1);
+        knotPoint(t + 0.0005, p2);
+        T.subVectors(p2, p1);
+        N.addVectors(p2, p1);
+        B.crossVectors(T, N);
+        N.crossVectors(B, T);
+        B.normalize();
+        N.normalize();
+        const v = Math.random() * TAU;
+        off.copy(N).multiplyScalar(Math.cos(v)).addScaledVector(B, Math.sin(v));
+        const rr = TUBE * (0.82 + Math.random() * 0.18);
+        target[i3] = p1.x + off.x * rr;
+        target[i3 + 1] = p1.y + off.y * rr;
+        target[i3 + 2] = p1.z + off.z * rr;
+        tubeN[i3] = off.x;
+        tubeN[i3 + 1] = off.y;
+        tubeN[i3 + 2] = off.z;
+
+        // Chaos: dichte Wolke, flach in z, damit sie den Frame füllt
+        const dir = new THREE.Vector3().randomDirection();
+        const rad = 7.2 * Math.pow(Math.random(), 0.55);
+        chaos[i3] = dir.x * rad * 1.15;
+        chaos[i3 + 1] = dir.y * rad;
+        chaos[i3 + 2] = dir.z * rad * 0.55;
+
+        // Zufallsrichtung: Bogen im Flug und Pseudo-Normale im Chaos
+        const rd = new THREE.Vector3().randomDirection().multiplyScalar(0.4 + Math.random() * 0.6);
+        rand[i3] = rd.x;
+        rand[i3 + 1] = rd.y;
+        rand[i3 + 2] = rd.z;
+
+        aU[i] = t;
+        aSize[i] = 0.6 + Math.random() * 0.8;
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(target, 3)); // nur für Bounding
+      geometry.setAttribute("aChaos", new THREE.BufferAttribute(chaos, 3));
+      geometry.setAttribute("aTarget", new THREE.BufferAttribute(target, 3));
+      geometry.setAttribute("aTubeN", new THREE.BufferAttribute(tubeN, 3));
+      geometry.setAttribute("aRand", new THREE.BufferAttribute(rand, 3));
+      geometry.setAttribute("aU", new THREE.BufferAttribute(aU, 1));
+      geometry.setAttribute("aSize", new THREE.BufferAttribute(aSize, 1));
+
+      // --- Shader ------------------------------------------------------------------
+
+      // Simplex Noise 3D (Ashima Arts / Stefan Gustavson, MIT)
+      const SNOISE = /* glsl */ `
+        vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+        vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+        vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+        vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+        float snoise(vec3 v){
+          const vec2 C=vec2(1.0/6.0,1.0/3.0);const vec4 D=vec4(0.0,0.5,1.0,2.0);
+          vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);
+          vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.0-g;vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);
+          vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;
+          i=mod289(i);
+          vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+          float n_=0.142857142857;vec3 ns=n_*D.wyz-D.xzx;
+          vec4 j=p-49.0*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.0*x_);
+          vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.0-abs(x)-abs(y);
+          vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);
+          vec4 s0=floor(b0)*2.0+1.0;vec4 s1=floor(b1)*2.0+1.0;vec4 sh=-step(h,vec4(0.0));
+          vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+          vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);
+          vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+          p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;
+          vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;
+          return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+        }
+      `;
+
+      const vertexShader = /* glsl */ `
+        uniform float uPhase;      // Loop-Phase 0..1
+        uniform float uAssemble;   // 0..1: der Stift zeichnet die Linie
+        uniform float uDissolve;   // 0..1: die Linie löst sich wieder auf
+        uniform float uSize;
+        uniform float uScale;      // halbe Drawing-Buffer-Höhe, wie bei PointsMaterial
+        uniform vec3 uMouse;
+        uniform float uMouseStrength;
+        uniform vec3 uPulseOrigin;
+        uniform float uPulseT;
+        uniform float uPulseAmp;
+        uniform vec3 uPaper;
+        uniform vec3 uRed;
+        uniform vec3 uRedDeep;
+        uniform vec3 uInk;
+        uniform vec2 uFog;         // Nebel: Start/Ende relativ zur Kamera
+
+        attribute vec3 aChaos;
+        attribute vec3 aTarget;
+        attribute vec3 aTubeN;
+        attribute vec3 aRand;
+        attribute float aU;
+        attribute float aSize;
+
+        varying vec3 vColor;
+
+        ${SNOISE}
+
+        float ease(float x) { return x * x * (3.0 - 2.0 * x); }
+
+        void main() {
+          // Periodische Noise-Zeit: Kreis statt Gerade, so ist Phase 1 == Phase 0
+          float a = uPhase * 6.2831853;
+          vec3 loopOff = vec3(cos(a), sin(a), 0.0) * 0.9;
+
+          // Chaos: jede Partikel driftet durch ein langsames Noise-Feld
+          vec3 np = aChaos * 0.17 + loopOff;
+          vec3 drift = vec3(
+            snoise(np),
+            snoise(np + vec3(31.4, 7.1, 0.0)),
+            snoise(np + vec3(0.0, 57.3, 13.7))
+          );
+          vec3 chaosPos = aChaos + drift * 1.7;
+
+          // Gestaffelter Aufbau entlang der Linie: aU bestimmt, wann der Punkt dran ist
+          float w = 0.16;
+          float s = aU * (1.0 - w);
+          float A = ease(clamp((uAssemble - s) / w, 0.0, 1.0));
+          float D = ease(clamp((uDissolve - s) / w, 0.0, 1.0));
+          float k = A * (1.0 - D);
+          float flight = sin(3.14159 * A) * (1.0 - D) + sin(3.14159 * D); // 1 = unterwegs
+
+          // Fertige Linie atmet leicht, damit sie nicht wie Plastik wirkt
+          vec3 targetPos = aTarget + aTubeN * snoise(aTarget * 0.9 + loopOff) * 0.05;
+          vec3 local = mix(chaosPos, targetPos, k) + aRand * flight * 1.5;
+
+          vec4 world = modelMatrix * vec4(local, 1.0);
+
+          // Maus: weiche Abstoßung im Weltraum
+          vec3 d = world.xyz - uMouse;
+          float dist2 = dot(d, d);
+          world.xyz += normalize(d + 1e-4) * exp(-dist2 / 2.4) * 1.5 * uMouseStrength;
+
+          // Klick: ringförmige Schockwelle
+          vec3 pd = world.xyz - uPulseOrigin;
+          float pdl = length(pd);
+          float ring = exp(-pow(pdl - uPulseT * 7.0, 2.0) * 1.4) * uPulseAmp;
+          world.xyz += pd / (pdl + 1e-4) * ring * 0.9;
+
+          vec4 mv = viewMatrix * world;
+          gl_Position = projectionMatrix * mv;
+
+          // Filmisches Licht: Key von oben links, Röhren-Normale für die fertige Linie
+          vec3 nObj = normalize(mix(normalize(aRand + 1e-3), aTubeN, k));
+          vec3 n = normalize(mat3(viewMatrix) * mat3(modelMatrix) * nObj);
+          vec3 L = normalize(vec3(-0.45, 0.75, 0.55));
+          float diff = max(dot(n, L), 0.0);
+
+          vec3 col = mix(uRedDeep, uRed, smoothstep(0.0, 0.9, diff));
+          col = mix(col, uPaper, pow(diff, 18.0) * 0.45 * k);   // Glanzlicht
+          col = mix(col, uInk, clamp(flight, 0.0, 1.0) * 0.9); // der Stift: Tinte
+
+          // Tiefe: was hinten liegt, verschwindet im Papier
+          float depth = -mv.z;
+          float fog = smoothstep(uFog.x, uFog.y, depth);
+          col = mix(col, uPaper, fog * 0.7);
+          vColor = col;
+
+          float size = uSize * aSize * (1.0 + flight * 1.2) * mix(1.0, 0.95, k);
+          gl_PointSize = size * uScale / depth;
+        }
+      `;
+
+      const fragmentShader = /* glsl */ `
+        varying vec3 vColor;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          float r = length(c);
+          float alpha = smoothstep(0.5, 0.4, r);
+          if (alpha < 0.01) discard;
+          // kleine Kugel pro Punkt: Rand etwas dunkler
+          gl_FragColor = vec4(vColor * (1.0 - r * 0.4), alpha);
+        }
+      `;
+
+      const uniforms = {
+        uPhase: { value: 0 },
+        uAssemble: { value: 0 },
+        uDissolve: { value: 0 },
+        uSize: { value: 0.1 },
+        uScale: { value: 500 },
+        uMouse: { value: new THREE.Vector3(999, 999, 999) },
+        uMouseStrength: { value: 0 },
+        uPulseOrigin: { value: new THREE.Vector3() },
+        uPulseT: { value: 10 },
+        uPulseAmp: { value: 0 },
+        uPaper: { value: toVec3(PAPER) },
+        uRed: { value: toVec3(RED) },
+        uRedDeep: { value: toVec3(RED).multiplyScalar(0.6) },
+        uFog: { value: new THREE.Vector2(18, 26) },
+        uInk: { value: toVec3(INK) },
+      };
+
+      const material = new THREE.ShaderMaterial({
+        vertexShader,
+        fragmentShader,
+        uniforms,
+        alphaToCoverage: true, // weiche Kanten mit MSAA, trotzdem korrekte Tiefe
+      });
+
+      const points = new THREE.Points(geometry, material);
+      points.frustumCulled = false; // Shader verschiebt Punkte, Bounding stimmt nicht
+      const group = new THREE.Group();
+      group.add(points);
+      scene.add(group);
+
+      // --- Ablauf als GSAP-Timeline (pausiert, wird per Phase gespult) ------------
+
+      const state = { assemble: 0, dissolve: 0 };
+      const l2 = document.getElementById("l2");
+
+      const tl = gsap.timeline({ paused: true });
+      tl.to(state, { assemble: 1, duration: 4.8, ease: "power2.inOut" }, 0.3)
+        .fromTo(l2, { yPercent: 110 }, { yPercent: 0, duration: 1.1, ease: "expo.out" }, 4.5)
+        .to(state, { dissolve: 1, duration: 2.3, ease: "power2.in" }, 7.3)
+        .to(l2, { yPercent: -110, duration: 0.8, ease: "expo.in" }, 7.7)
+        .set({}, {}, LOOP); // Timeline exakt LOOP Sekunden lang
+
+      // --- Größe & Kamera-Fit -------------------------------------------------------
+
+      function resize() {
+        const w = stage.clientWidth;
+        const h = stage.clientHeight;
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h;
+        // Knoten (Radius ~4.7) soll in beiden Richtungen ins Bild passen
+        const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+        const fit = 5.3;
+        camDistance = Math.max(fit / tanHalf, fit / (tanHalf * camera.aspect));
+        camera.updateProjectionMatrix();
+        uniforms.uFog.value.set(camDistance + 2.5, camDistance + 11);
+        uniforms.uScale.value = renderer.getDrawingBufferSize(new THREE.Vector2()).y * 0.5;
+      }
+      new ResizeObserver(resize).observe(stage);
+      resize();
+
+      // --- Interaktion --------------------------------------------------------------
+
+      const pointer = new THREE.Vector2(0, 0); // NDC
+      const parallax = { x: 0, y: 0 };
+      const raycaster = new THREE.Raycaster();
+      const plane = new THREE.Plane();
+      const hit = new THREE.Vector3();
+      const clock = { extra: 0 }; // vorgespulte Sekunden durch Klicks
+      let recording = false;
+
+      function pointerToWorld(e) {
+        const rect = stage.getBoundingClientRect();
+        pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+        raycaster.setFromCamera(pointer, camera);
+        plane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()).negate(), new THREE.Vector3());
+        return raycaster.ray.intersectPlane(plane, hit);
+      }
+
+      stage.addEventListener("pointermove", (e) => {
+        if (recording) return;
+        if (pointerToWorld(e)) uniforms.uMouse.value.copy(hit);
+        gsap.to(uniforms.uMouseStrength, { value: 1, duration: 0.6, ease: "power2.out", overwrite: true });
+      });
+      stage.addEventListener("pointerleave", () => {
+        gsap.to(uniforms.uMouseStrength, { value: 0, duration: 1.2, ease: "power2.out", overwrite: true });
+        pointer.set(0, 0);
+      });
+      stage.addEventListener("pointerup", (e) => {
+        if (e.pointerType !== "mouse") gsap.to(uniforms.uMouseStrength, { value: 0, duration: 1.2, overwrite: true });
+      });
+
+      // Klick = einen Tag teilen: Welle vom Klickpunkt + Prozess spult vor
+      stage.addEventListener("click", (e) => {
+        if (recording) return;
+        if (pointerToWorld(e)) uniforms.uPulseOrigin.value.copy(hit);
+        uniforms.uPulseT.value = 0;
+        uniforms.uPulseAmp.value = 1;
+        gsap.to(uniforms.uPulseAmp, { value: 0, duration: 1.6, ease: "power2.out", overwrite: true });
+        gsap.to(clock, { extra: clock.extra + 0.9, duration: 1.1, ease: "expo.out" });
+      });
+
+      // --- Record-Modus -------------------------------------------------------------
+
+      let recordStart = 0;
+
+      function startRecord(ratio) {
+        recording = true;
+        document.documentElement.style.setProperty("--ar", ratio);
+        document.body.classList.add("record");
+        gsap.killTweensOf([clock, uniforms.uMouseStrength, uniforms.uPulseAmp]);
+        uniforms.uMouseStrength.value = 0;
+        uniforms.uPulseAmp.value = 0;
+        parallax.x = parallax.y = 0;
+        recordStart = performance.now() / 1000;
+        resize();
+      }
+
+      function stopRecord() {
+        recording = false;
+        document.body.classList.remove("record");
+        resize();
+      }
+
+      addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && recording) return stopRecord();
+        if (e.key.toLowerCase() !== "r") return;
+        if (recording) return stopRecord();
+        startRecord(e.shiftKey ? 16 / 9 : 1);
+      });
+
+      // --- Loop ---------------------------------------------------------------------
+
+      let last = performance.now() / 1000;
+
+      function tick() {
+        const now = performance.now() / 1000;
+        const dt = Math.min(now - last, 0.1);
+        last = now;
+
+        // Spielkopf in Sekunden: im Record-Modus streng deterministisch
+        const head = recording ? now - recordStart + START_OFFSET : now + START_OFFSET + clock.extra;
+        const loopT = ((head % LOOP) + LOOP) % LOOP;
+        const phase = loopT / LOOP;
+
+        tl.seek(loopT, false);
+        uniforms.uPhase.value = phase;
+        uniforms.uAssemble.value = state.assemble;
+        uniforms.uDissolve.value = state.dissolve;
+        uniforms.uPulseT.value += dt;
+
+        // Objekt pendelt, statt sich zu drehen: periodisch und ruhig
+        const a = phase * TAU;
+        group.rotation.set(0.32 + Math.cos(a) * 0.16, Math.sin(a) * 0.42, Math.sin(a) * 0.22);
+
+        // Kamera: kleine periodische Fahrt + gedämpfte Maus-Parallaxe
+        if (!recording) {
+          parallax.x += (pointer.x - parallax.x) * 0.04;
+          parallax.y += (pointer.y - parallax.y) * 0.04;
+        }
+        camera.position.set(
+          Math.sin(a) * 1.4 + parallax.x * 1.6,
+          Math.cos(a) * 0.7 + parallax.y * 1.0,
+          camDistance + Math.cos(a * 2) * 0.6
+        );
+        camera.lookAt(0, 0, 0);
+
+        if (!recording) dayEl.textContent = "Day " + String(Math.floor(head / 0.45) % 1000).padStart(3, "0");
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(tick);
+      }
+
+      // Erst starten, wenn die Schriften da sind: kein Flackern im ersten Frame
+      document.fonts.ready.then(() => requestAnimationFrame(tick));
+    </script>
+  </body>
+</html>
