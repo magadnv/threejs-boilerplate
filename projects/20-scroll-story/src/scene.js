@@ -54,6 +54,7 @@ export const U = {
   charge: uniform(0), // Easter Egg 2: Kugel gedrückt halten → lädt auf 0..1
   burst: uniform(0), // … und explodiert, federt zurück
   gold: uniform(0), // Easter Egg 3: Gold-Edition
+  tilt: uniform(new THREE.Vector2()), // Easter Egg 5: Kuzushi – Siegel kippt um die Mitte
 };
 
 // Wie weit der Zeitversatz zwischen den Splittern reicht (0 = alle gleichzeitig)
@@ -243,7 +244,9 @@ export async function createWorld(scene, path, { count, reduced }) {
 
   const p1 = mix(charged, aScatter, e1).add(aArc.mul(sin(e1.mul(PI))));
   // Easter Egg: aus dem Siegel wird „hey.“ – mit eigenem Bogen, Splitter für Splitter
-  const sealOrHey = mix(aSeal, aHey, e3).add(aArc.mul(sin(e3.mul(PI)).mul(0.8)));
+  // Kuzushi: das Siegel als Ganzes um seine Mitte kippen
+  const tilted = rotate(aSeal.sub(SEAL_CENTER), vec3(U.tilt.y, U.tilt.x, U.tilt.x.mul(0.3))).add(SEAL_CENTER);
+  const sealOrHey = mix(tilted, aHey, e3).add(aArc.mul(sin(e3.mul(PI)).mul(0.8)));
   const offset = mix(p1, sealOrHey, e2)
     .add(aArc.mul(sin(e2.mul(PI)).mul(0.35))) // halber Bogen: ruhigeres Zusammensetzen
     .add(aArc.mul(U.stamp).mul(e2)) // Klick: Stoß nach außen, federt zurück

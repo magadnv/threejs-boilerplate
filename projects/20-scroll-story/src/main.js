@@ -12,7 +12,7 @@
 //   scroll.js          Lenis + ScrollTrigger + der eine Takt, Auto-Scroll
 //   text-animations.js SplitText-Intro und Text-Helfer für die Kapitel
 //   debug.js           Tasten D/H/A, HUD, Fortschrittsbalken
-//   easter-egg.js      drei Geheimnisse: Stempeln, Halten, Gold
+//   easter-egg.js      sechs Geheimnisse: Stempeln, Halten, Gold, Stille, Kuzushi, Konami
 
 import { createRenderer, createScene, createCamera, createPost, onResize, isMobile, reducedMotion } from "./setup.js";
 import * as THREE from "three/webgpu";
@@ -63,7 +63,7 @@ const autoScroll = createAutoScroll(lenis, {
 
 const debug = createDebug({ chapters, pathHelper, rig, renderer, autoScroll });
 
-const eggs = createEasterEggs({ reduced: reducedMotion });
+const eggs = createEasterEggs({ reduced: reducedMotion, scene, camera, post });
 
 // --- Siegel-Entdeckungen: Maus drückt die Splitter weg, Klick stempelt ---
 // Der Mausstrahl trifft die Ebene des Siegels; der Treffpunkt geht als uniform
@@ -82,7 +82,7 @@ addEventListener("pointermove", (e) => {
 addEventListener("click", (e) => {
   if (e.target.closest("a")) return;
   if (eggs.heyActive) return eggs.closeHey();
-  if (overSeal) eggs.stamp();
+  if (overSeal && !eggs.dragged) eggs.stamp();
 });
 
 function updatePointer(dt) {
@@ -93,7 +93,7 @@ function updatePointer(dt) {
   U.pointerAmt.value = THREE.MathUtils.damp(U.pointerAmt.value, overSeal && !reducedMotion ? 1 : 0, 6, dt);
   // Die Kugel lässt sich nur im Intro greifen, solange sie noch ganz ist
   const sphereHit = U.scatter.value < 0.02 && raycaster.ray.intersectsSphere(introSphere);
-  const overSphere = eggs.update(dt, { sphereHit });
+  const overSphere = eggs.update(dt, { sphereHit, overSeal });
 
   document.body.style.cursor = overSeal || overSphere || eggs.heyActive ? "pointer" : "";
   // Wer hochscrollt, bekommt das Siegel zurück

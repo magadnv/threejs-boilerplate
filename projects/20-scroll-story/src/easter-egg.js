@@ -1,5 +1,5 @@
 // ============================================================
-// EASTER EGGS – drei Geheimnisse, drei verschiedene Auslöser
+// EASTER EGGS – sechs Geheimnisse, sechs verschiedene Auslöser
 // ============================================================
 //   1 · Stempeln  fünfmal aufs fertige Siegel klicken. Die Stöße werden stärker,
 //                 beim fünften schreiben die Splitter „hey.“ (uniform U.egg)
@@ -7,15 +7,20 @@
 //                 (U.charge: Zittern + Glühen) und explodiert (U.burst)
 //   3 · Gold      „luxe“ tippen oder dreimal auf „madebymaga“ klicken →
 //                 Gold-Edition für die ganze Seite (U.gold + CSS-Klasse)
+//   4 · Stille    auf der Reise 5 s nichts tun → die Welt hält an, eine
+//                 Sternschnuppe zieht durchs Bild
+//   5 · Kuzushi   das Siegel schnell zur Seite ziehen → es kippt aus dem
+//                 Gleichgewicht und federt zurück (U.tilt)
+//   6 · Konami    ↑↑↓↓←→←→ → 8-Bit-Edition (post.pixel im Post-Processing)
 //
-// Jeder Fund zählt mit: „Easter egg 2 / 3“ – wer zwei hat, sucht das dritte.
+// Jeder Fund zählt mit: „Easter egg 2 / 6“ – wer zwei hat, sucht weiter.
 
 import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
 import * as THREE from "three/webgpu";
 import { U } from "./scene.js";
 
-const TOTAL = 3;
+const TOTAL = 6;
 const found = new Set();
 
 // Gibt die Zeile „Easter egg n / 3“ zurück und merkt sich den Fund
@@ -44,7 +49,7 @@ function createToast() {
   };
 }
 
-export function createEasterEggs({ reduced }) {
+export function createEasterEggs({ reduced, scene, camera, post }) {
   const toast = createToast();
 
   // ---------------- 1 · Stempeln → „hey.“ ----------------
@@ -157,15 +162,110 @@ export function createEasterEggs({ reduced }) {
     }
   });
 
+  // ---------------- 4 · Stille → Sternschnuppe ----------------
+  const IDLE_CALM = 2.5; // ab hier wird die Welt ruhiger
+  const IDLE_WISH = 5; //  ab hier kommt die Sternschnuppe
+  let idle = 0;
+  let wished = false;
+
+  for (const type of ["pointermove", "pointerdown", "wheel", "keydown", "touchstart", "scroll"]) {
+    addEventListener(type, () => (idle = 0), { passive: true });
+  }
+
+  // Die Sternschnuppe hängt an der Kamera – so fliegt sie immer durchs Bild
+  const starMat = new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(4, 3.8, 3.4), transparent: true, opacity: 0, fog: false });
+  const star = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.018, 1.4, 6), starMat);
+  scene.add(camera);
+  camera.add(star);
+  star.visible = false;
+
+  function shootingStar() {
+    const from = new THREE.Vector3(-3.6, 2.4, -8);
+    const to = new THREE.Vector3(3.8, 0.6, -8);
+    // Zylinder zeigt entlang Y → in Flugrichtung drehen, dünnes Ende hinten
+    star.rotation.z = Math.atan2(to.y - from.y, to.x - from.x) - Math.PI / 2;
+    star.position.copy(from);
+    star.visible = true;
+    gsap
+      .timeline({ onComplete: () => (star.visible = false) })
+      .to(starMat, { opacity: 1, duration: 0.15 }, 0)
+      .to(star.position, { x: to.x, y: to.y, duration: 1.2, ease: "power1.in" }, 0)
+      .to(starMat, { opacity: 0, duration: 0.35 }, 0.85);
+    toast(discover("wish"), "Still enough to see it. <em>Make a wish.</em>");
+  }
+
+  function updateStillness(dt) {
+    const onJourney = U.scatter.value > 0.6 && U.form.value < 0.05;
+    idle = onJourney ? idle + dt : 0;
+    if (!onJourney) wished = false;
+
+    // Wer still hält, dessen Welt wird auch still: Treiben und Drehen ebben ab
+    if (!reduced) {
+      const calm = THREE.MathUtils.smoothstep(idle, IDLE_CALM, IDLE_WISH);
+      U.motion.value = 1 - calm * 0.85;
+    }
+    if (idle > IDLE_WISH && !wished) {
+      wished = true;
+      shootingStar();
+    }
+  }
+
+  // ---------------- 5 · Kuzushi → Siegel kippt ----------------
+  let drag = null;
+  let dragged = false;
+
+  addEventListener("pointerdown", (e) => {
+    dragged = false;
+    drag = lastOverSeal ? { x: e.clientX, t: performance.now() } : null;
+  });
+  addEventListener("pointermove", (e) => {
+    if (!drag || U.tilt.value.lengthSq() > 0.01) return;
+    const dx = e.clientX - drag.x;
+    if (Math.abs(dx) > 10) dragged = true;
+    const fast = performance.now() - drag.t < 700;
+    if (fast && Math.abs(dx) > Math.min(220, innerWidth * 0.16)) {
+      kuzushi(Math.sign(dx));
+      drag = null;
+    }
+  });
+  addEventListener("pointerup", () => (drag = null));
+
+  function kuzushi(dir) {
+    const t = U.tilt.value;
+    gsap
+      .timeline()
+      .to(t, { x: dir * 0.85, y: 0.3, duration: 0.35, ease: "power2.out" })
+      .to(t, { x: 0, y: 0, duration: 2.4, ease: "elastic.out(1, 0.28)" });
+    toast(discover("kuzushi"), "Kuzushi. <em>Off balance, and back.</em>");
+  }
+
+  // ---------------- 6 · Konami → 8-Bit ----------------
+  const KONAMI = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight"];
+  let keys = [];
+  let pixelOn = false;
+
+  addEventListener("keydown", (e) => {
+    keys = [...keys, e.key].slice(-KONAMI.length);
+    if (keys.join() !== KONAMI.join()) return;
+    keys = [];
+    pixelOn = !pixelOn;
+    gsap.to(post.pixel, { value: pixelOn ? 1 : 0, duration: 0.6, ease: "steps(6)", overwrite: true });
+    if (pixelOn) toast(discover("konami"), "8-bit edition. <em>Respect the classics.</em>");
+  });
+
   // Ein Gruß für alle, die in die Konsole schauen
   console.log(
-    "%cpsst.%c Three easter eggs hide in this page. One of them starts by typing a four-letter word for what you deserve.",
+    "%cpsst.%c Six easter eggs hide in this page. One of them starts by typing a four-letter word for what you deserve.",
     "font: italic 20px 'Instrument Serif', serif; color: #cf1830",
     "font: 12px Inter, sans-serif"
   );
 
-  // Pro Frame: Kugel-Treffer übernehmen und Ladung auf- oder abbauen
-  function update(dt, { sphereHit }) {
+  let lastOverSeal = false;
+
+  // Pro Frame: Treffer übernehmen, Ladung auf- oder abbauen, Stille messen
+  function update(dt, { sphereHit, overSeal }) {
+    lastOverSeal = overSeal;
+    updateStillness(dt);
     cooldown = Math.max(0, cooldown - dt);
     overSphere = sphereHit && cooldown === 0;
     if (holding && overSphere) {
@@ -181,6 +281,10 @@ export function createEasterEggs({ reduced }) {
   return {
     get heyActive() {
       return heyActive;
+    },
+    // Nach einem Kuzushi-Zug soll der Klick nicht auch noch stempeln
+    get dragged() {
+      return dragged;
     },
     stamp,
     closeHey,
