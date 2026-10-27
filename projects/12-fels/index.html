@@ -149,6 +149,37 @@
         box-shadow: 0 3px 0 rgba(0,0,0,0.08); white-space: nowrap; z-index: 2;
       }
       #tagCom { color: #b98900; }
+      #tagNarrow { color: var(--out); }
+      #tagWide { color: var(--ok); }
+
+      /* ---------- Level-Knopf + zweiter Karten-Knopf ---------- */
+      #levelBtn {
+        position: fixed; left: calc(14px + env(safe-area-inset-left, 0px)); top: calc(14px + var(--safe-top));
+        height: 52px; padding: 0 18px; border-radius: 999px; background: var(--white);
+        font-size: 18px; font-weight: 700; color: var(--ink); box-shadow: 0 3px 0 #e7d3bd; z-index: 5;
+      }
+      #card .btn.alt { background: var(--white); color: var(--red); box-shadow: 0 6px 0 #e7d3bd; margin-left: 12px; }
+      #card .btn.alt[hidden] { display: none; }
+      #card .levels { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+      #card .levels[hidden] { display: none; }
+      #card .levels button {
+        width: min(280px, 42vw); padding: 22px 18px; border-radius: 28px; background: var(--white);
+        box-shadow: 0 6px 0 #e7d3bd; text-align: center; color: var(--ink);
+      }
+      #card .levels button b { display: block; font-size: clamp(22px, 4vw, 30px); color: var(--red); }
+      #card .levels button span { font-size: clamp(16px, 2.6vw, 20px); font-weight: 600; }
+      #card .levels button:active { transform: translateY(4px); box-shadow: 0 2px 0 #e7d3bd; }
+
+      /* ---------- Level 2: Pfeile rund um Bo ---------- */
+      .arrow {
+        position: fixed; width: 72px; height: 72px; margin: -36px 0 0 -36px; border-radius: 50%;
+        background: var(--white); color: var(--red); font-size: 38px; font-weight: 700;
+        display: grid; place-items: center; box-shadow: 0 5px 0 #e7d3bd; z-index: 2;
+        opacity: 0; pointer-events: none;
+      }
+      .arrow span { display: block; line-height: 1; }
+      .arrow.stood { background: #efe2d2; color: #b8a28d; }
+      .arrow.fell { background: var(--gold); color: var(--ink); box-shadow: 0 5px 0 #c99a00; }
       #tagBase { color: var(--ok); }
     </style>
   </head>
@@ -165,6 +196,7 @@
     <div id="say" aria-live="polite"></div>
     <div id="stars" aria-hidden="true"><span>★</span><span>★</span><span>★</span></div>
     <button id="sound" aria-label="Ton an oder aus">🔊</button>
+    <button id="levelBtn" aria-label="Level wählen">☰ Level</button>
     <button id="action" class="btn"></button>
 
     <div id="sWidth" class="slider" aria-label="Beine breiter oder schmaler">
@@ -181,20 +213,29 @@
     <div id="hand">👆</div>
     <div id="tagCom" class="tag">Kugel</div>
     <div id="tagBase" class="tag">Fläche</div>
+    <div id="tagNarrow" class="tag">schmal</div>
+    <div id="tagWide" class="tag">breit</div>
+    <div id="arrows"></div>
 
     <div id="card"><div class="inner">
       <div class="seal" hidden>🪨</div>
       <h1></h1>
       <p></p>
-      <button class="btn"></button>
+      <div class="levels" hidden>
+        <button data-level="1"><b>Level 1</b><span>Steh wie ein Fels</span></button>
+        <button data-level="2"><b>Level 2</b><span>Die schwache Seite</span></button>
+      </div>
+      <button class="btn main"></button><button class="btn alt" hidden></button>
     </div></div>
 
     <script type="module">
       import * as THREE from "three";
 
       /* =====================================================================
-         DER FELS · Level 1
-         Ein Satz für Kinder: „Tief und breit = stark. Hoch und schmal = du fällst um.“
+         DER FELS · Kinder
+         Level 1: „Tief und breit = stark. Hoch und schmal = du fällst um.“
+         Level 2: „Schubs da, wo die Füße schmal stehen.“ (Rollentausch: Bo finden lassen,
+                  wo er am leichtesten kippt – die schmale Seite seiner Basis.)
 
          Physik: Die Figur ist ein starrer Körper, der um die Kante seiner Basis
          kippt (Housner-Kippblock). Pro Achse (links/rechts = x, vorne/hinten = z):
@@ -390,7 +431,7 @@
       });
 
       // ---------- Haltung: Fußabstand w + Hüfthöhe → Beine, Basis, Schwerpunkt ----------
-      const pose = { w: 0.34, t: 1, wTarget: 0.34, tTarget: 1, hipY: 1.4 };
+      const pose = { w: 0.34, t: 1, wTarget: 0.34, tTarget: 1, hipY: 1.4, yaw: 0 }; // yaw: Drehung der Figur (Level 2)
       const UP = new THREE.Vector3(0, 1, 0);
       const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpC = new THREE.Vector3();
 
@@ -489,10 +530,16 @@
         const len = Math.hypot(dirX, dirZ) || 1;
         const k = PUSH * strength;
         phys.x.w += (dirX / len) * k * h / (bx * bx + h * h);
-        phys.z.w += (dirZ / len) * Z_PUSH * k * h / (bz * bz + h * h);
+        phys.z.w += (dirZ / len) * zPush * k * h / (bz * bz + h * h);
         squash.vel += 2.2 * strength;
         for (const a of arms) a.vel -= (dirX / len) * 6 * strength;
         sfx.boing(strength);
+      }
+
+      // Level 2: Schubs-Richtung in Weltkoordinaten → in die gedrehte Figur umrechnen
+      function pushWorld(wx, wz, strength) {
+        const c = Math.cos(pose.yaw), s = Math.sin(pose.yaw);
+        push(wx * c - wz * s, wx * s + wz * c, strength);
       }
 
       function land(ax) {
@@ -541,12 +588,13 @@
       }
 
       // ---------- Figur um die Kippkante drehen ----------
-      const mT = new THREE.Matrix4(), mR = new THREE.Matrix4(), mRx = new THREE.Matrix4();
+      const mT = new THREE.Matrix4(), mR = new THREE.Matrix4(), mRx = new THREE.Matrix4(), mYaw = new THREE.Matrix4();
       function updateFigureMatrix() {
         const { bx, bz } = geo();
         const px = Math.sign(phys.x.phi) * bx, pz = Math.sign(phys.z.phi) * bz;
         figure.matrix
-          .makeTranslation(px, 0, pz)
+          .makeRotationY(pose.yaw)
+          .multiply(mT.makeTranslation(px, 0, pz))
           .multiply(mR.makeRotationZ(-phys.x.phi))
           .multiply(mRx.makeRotationX(phys.z.phi))
           .multiply(mT.makeTranslation(-px, 0, -pz));
@@ -608,7 +656,9 @@
         comBall.scale.setScalar(pulse * (explainFocus ? 1.4 : 1));
         comGlow.scale.setScalar(0.9 * pulse * (explainFocus ? 1.25 : 1));
         // Liegt die Projektion in der Basis-Fläche? (Basis bleibt am Boden)
-        inside = Math.abs(comWorld.x) <= bx + 1e-4 && Math.abs(comWorld.z) <= bz + 1e-4;
+        const cy = Math.cos(pose.yaw), sy = Math.sin(pose.yaw);
+        const lx = comWorld.x * cy - comWorld.z * sy, lz = comWorld.x * sy + comWorld.z * cy;
+        inside = Math.abs(lx) <= bx + 1e-4 && Math.abs(lz) <= bz + 1e-4;
         const col = inside ? colOk : colOut;
         dotMat.color.copy(col);
         groundRing.material.color.copy(col);
@@ -619,6 +669,7 @@
         });
         groundRing.position.set(comWorld.x, 0.02, comWorld.z);
         basePlate.scale.set(bx * 2, bz * 2, 1);
+        basePlate.rotation.z = pose.yaw;
       }
 
       // ---------- Kamera passt sich an Hoch- und Querformat an ----------
@@ -715,18 +766,28 @@
       }
 
       // Karte mit max. einem Satz (h1 = Überschrift, p = Satz)
-      function showCard({ title = "", text = "", button, seal = false, onClick }) {
+      function showCard({ title = "", text = "", button, seal = false, sealIcon = "🪨", onClick, button2, onClick2, levels }) {
         card.querySelector("h1").textContent = title;
         card.querySelector("h1").classList.toggle("long", title.length > 30);
         card.querySelector("p").textContent = text;
         card.querySelector(".seal").hidden = !seal;
-        const btn = card.querySelector("button");
-        btn.textContent = button;
-        btn.onclick = () => {
+        card.querySelector(".seal").textContent = sealIcon;
+        const close = (fn) => () => {
           ensureAudio();
           card.style.pointerEvents = "none";
-          gsap.to(card, { opacity: 0, duration: 0.3, onComplete: onClick });
+          gsap.to(card, { opacity: 0, duration: 0.3, onComplete: fn });
         };
+        const btn = card.querySelector(".btn.main"), alt = card.querySelector(".btn.alt");
+        btn.hidden = !button;
+        btn.textContent = button || "";
+        btn.onclick = close(onClick);
+        alt.hidden = !button2;
+        alt.textContent = button2 || "";
+        alt.onclick = close(onClick2);
+        // Level-Auswahl als große Kacheln
+        const lv = card.querySelector(".levels");
+        lv.hidden = !levels;
+        lv.querySelectorAll("button").forEach((b) => (b.onclick = close(() => levels(+b.dataset.level))));
         card.style.pointerEvents = "auto";
         gsap.fromTo(card, { opacity: 0 }, { opacity: 1, duration: 0.35 });
         gsap.fromTo(card.querySelector(".inner"), { y: 40, scale: 0.94 }, { y: 0, scale: 1, duration: 0.6, ease: "back.out(1.8)" });
@@ -802,6 +863,8 @@
 
       // ---------- Eingabe: Tippen oder Wischen = Schubsen ----------
       let allowPush = false;
+      let level = 1;
+      let zPush = Z_PUSH; // Level 1: Schubse vor allem seitlich, Level 2: alle Richtungen voll
       let lastPush = null;
       let pushBoost = 1; // Level 1: jeder Stern-Schubs wird etwas stärker
       let down = null;
@@ -816,7 +879,7 @@
         const dt = Math.max(16, performance.now() - down.t);
         const dist = Math.hypot(dx, dy);
         down = null;
-        if (!allowPush || phys.fallen || phys.frozen) return;
+        if (level !== 1 || !allowPush || phys.fallen || phys.frozen) return;
         let p;
         if (dist > 30) {
           // Wischen: Richtung = Wischrichtung, Stärke = Tempo
@@ -852,6 +915,7 @@
       // Hand-Hinweis „hier antippen“ – ohne Maus nach 3 Sek. sichtbar
       let handTween = null;
       function showHand() {
+        if (level !== 1 || !allowPush) return; // Timer aus Level 1 kann nach einem Levelwechsel noch feuern
         hand.dataset.on = "1";
         gsap.to(hand, { opacity: 1, duration: 0.3 });
         handTween = gsap.to(hand, { y: -18, duration: 0.5, yoyo: true, repeat: -1, ease: "sine.inOut" });
@@ -882,17 +946,28 @@
       function slowMo(on) {
         gsap.to(phys, { timeScale: on ? 0.4 : 1, duration: on ? 0.2 : 0.6 });
       }
-      function showTags(on) {
+      function showTags(on, extra = []) {
         explainFocus = on;
-        gsap.to([tagCom, tagBase], { opacity: on ? 1 : 0, duration: 0.3 });
+        gsap.to([tagCom, tagBase, ...extra], { opacity: on ? 1 : 0, duration: 0.3 });
       }
 
       // ---------- Die Journey (ein Schritt pro Bildschirm) ----------
       const flow = {
+        // Level-Auswahl
         start() {
+          resetScene();
+          showCard({
+            seal: true, title: "Der Fels", text: "Welches Level spielst du?",
+            levels: (n) => (n === 1 ? flow.level1() : flow.level2()),
+          });
+        },
+
+        level1() {
+          resetScene();
+          setLevel(1);
           setPose(0.34, 1, true);
           showCard({
-            seal: true, title: "Der Fels", text: "Kannst du ihn umschubsen?", button: "Los!",
+            seal: true, title: "Level 1", text: "Kannst du ihn umschubsen?", button: "Los!",
             onClick: flow.try1,
           });
         },
@@ -993,8 +1068,98 @@
             seal: true,
             title: "Tief und breit = stark.\nHoch und schmal = du fällst um.",
             text: "Zeig deinem Trainer deine stärkste Base!",
-            button: "Nochmal spielen",
-            onClick: flow.free,
+            button: "Level 2!",
+            onClick: flow.level2,
+            button2: "Weiterspielen",
+            onClick2: flow.free,
+          });
+        },
+
+        // ===== LEVEL 2: Die schwache Seite (Rollentausch) =====
+        level2() {
+          resetScene();
+          setLevel(2);
+          showCard({
+            seal: true, sealIcon: "🎯", title: "Level 2", text: "Von wo fällt Bo am leichtesten um?", button: "Los!",
+            onClick: () => flow.round(0),
+          });
+        },
+
+        // Eine Runde: Bo steht gedreht da, das Kind sucht die schmale Seite
+        async round(r) {
+          const yaws = [0, Math.PI / 2, (Math.random() < 0.5 ? 1 : -1) * Math.PI / 4];
+          await turnBo(yaws[r]);
+          resetArrows();
+          showArrows(true);
+          gsap.to("#stars", { opacity: r > 0 ? 1 : 0, duration: 0.3 });
+          setStars(0);
+          say(["Tipp auf einen Pfeil!", "Bo dreht sich. Wo ist er jetzt schwach?", "Und jetzt?"][r]);
+          let tries = 0;
+          arrowsActive = true;
+          onArrow = (i) => {
+            tries++;
+            arrowsActive = false;
+            lastArrow = i;
+            arrowPush(i);
+            onStand = () => {
+              arrowEls[i].classList.add("stood");
+              say(tries === 1 ? "Bo steht noch. Probier eine andere Seite!" : "Steht! Weiter suchen.");
+              arrowsActive = true;
+            };
+            onFall = async () => {
+              arrowEls[i].classList.add("fell");
+              const stars = tries <= 1 ? 3 : tries <= 3 ? 2 : 1;
+              if (r > 0) { setStars(stars); starEls.forEach((_, k) => k < stars && gsap.fromTo(starEls[k], { scale: 0.3 }, { scale: 1, duration: 0.5, delay: k * 0.12, ease: "back.out(3)" })); }
+              sfx.ding();
+              say(tries === 1 ? "Volltreffer! Gleich beim ersten Mal!" : "Umgefallen! Da war er schwach.");
+              await wait(1400);
+              if (r === 0) {
+                showArrows(false);
+                showCard({ title: "Warum war es da so leicht?", button: "Zeig's mir", onClick: flow.explainL2 });
+              } else if (r < 2) {
+                await standUp();
+                flow.round(r + 1);
+              } else {
+                showArrows(false);
+                gsap.to("#stars", { opacity: 0, duration: 0.3 });
+                flow.endL2();
+              }
+            };
+          };
+        },
+
+        // Zeitlupe: dieselbe Seite, mit „schmal“ und „breit“ an der Fläche
+        async explainL2() {
+          await standUp();
+          say("Schau auf die Fläche!");
+          explainFocus = true;
+          gsap.to([tagNarrow, tagWide], { opacity: 1, duration: 0.3 });
+          await wait(1400);
+          slowMo(true);
+          onStand = null;
+          onFall = async () => {
+            slowMo(false);
+            say("Da ist seine Fläche ganz schmal!");
+            await wait(900);
+            showAction("Weiter", async () => {
+              showTags(false, [tagNarrow, tagWide]);
+              await standUp();
+              flow.round(1);
+            });
+          };
+          arrowPush(lastArrow);
+          setTimeout(() => slowMo(false), 2500); // nur das Kippen in Zeitlupe, der Rest normal
+        },
+
+        endL2() {
+          showCard({
+            seal: true, sealIcon: "🎯",
+            title: "Schubs da, wo die Füße schmal stehen.",
+            text: "Zeig deinem Trainer, wo dein Partner schwach steht!",
+            button: "Nochmal",
+            onClick: flow.level2,
+            button2: "Level wählen",
+            onClick2: flow.start,
           });
         },
 
@@ -1038,7 +1203,8 @@
         // Kamera folgt sanft, wenn die Figur liegt
         const targetX = phys.fallen ? comWorld.x * 0.5 : 0;
         camLook.x += (targetX - camLook.x) * (1 - Math.exp(-dt * 2));
-        camera.position.set(camLook.x, 0.42 * camDist, camDist);
+        camera.position.set(camLook.x, view.up * camDist, view.back * camDist);
+        camLook.y = view.look;
         camera.lookAt(camLook);
 
         // DOM-Helfer an 3D-Punkte heften
@@ -1051,8 +1217,102 @@
         tagBase.style.left = b.x + 40 + "px";
         tagBase.style.top = b.y + 10 + "px";
 
+        // Level 2: „schmal“/„breit“ an der gedrehten Fläche, Pfeile rund um Bo
+        const g = geo(), cyw = Math.cos(pose.yaw), syw = Math.sin(pose.yaw);
+        const local = (x, z) => tmpA.set(x * cyw + z * syw, 0, -x * syw + z * cyw);
+        const n = toScreen(local(0, g.bz + 0.45));
+        tagNarrow.style.left = n.x + "px";
+        tagNarrow.style.top = n.y + "px";
+        const wd = toScreen(local(g.bx + 0.55, 0));
+        tagWide.style.left = wd.x + "px";
+        tagWide.style.top = wd.y + "px";
+        if (arrowsShown) {
+          const center = toScreen(tmpB.set(0, 0.05, 0));
+          arrowEls.forEach((el, i) => {
+            const a = (i / 8) * Math.PI * 2;
+            // Pfeile hinter Bo weiter weg, damit sie nicht auf seinem Kopf liegen
+            const r = ARROW_R * (1 + 0.45 * Math.max(0, -Math.sin(a)));
+            const sp = toScreen(tmpC.set(Math.cos(a) * r, 0.05, Math.sin(a) * r));
+            el.style.left = sp.x + "px";
+            el.style.top = sp.y + "px";
+            el.firstChild.style.transform = `rotate(${Math.atan2(center.y - sp.y, center.x - sp.x)}rad)`;
+          });
+        }
+
         renderer.render(scene, camera);
         requestAnimationFrame(tick);
+      }
+
+      // ---------- Level-Umschaltung ----------
+      const tagNarrow = $("#tagNarrow"), tagWide = $("#tagWide");
+      const view = { up: 0.42, back: 1, look: 1.3 }; // Kamera: Level 2 schaut steiler auf die Matte
+      function setLevel(n) {
+        level = n;
+        zPush = n === 1 ? Z_PUSH : 1;
+        // Level 2: Bo ist ein anderer Gegner – orange Kappe, grüner Gürtel, feste Haltung
+        mHead.color.set(n === 1 ? COLORS.head : 0xff8a3d);
+        mBelt.color.set(n === 1 ? COLORS.belt : 0x2bb673);
+        gsap.to(view, n === 1 ? { up: 0.42, back: 1, look: 1.3, duration: 0.8 } : { up: 0.98, back: 0.7, look: 1.15, duration: 0.8 });
+        if (n === 2) setPose(1.0, 0.5, true);
+      }
+      function resetScene() {
+        allowPush = false;
+        arrowsActive = false;
+        onStand = onFall = onPushStart = null;
+        phys.pending = null;
+        Object.assign(phys.x, { phi: 0, w: 0 });
+        Object.assign(phys.z, { phi: 0, w: 0 });
+        phys.fallen = phys.frozen = false;
+        phys.timeScale = 1;
+        dizzy.visible = false;
+        eyes.forEach((e) => e.scale.set(1, 1, 1));
+        pose.yaw = 0;
+        hideAction();
+        hideHand();
+        showSliders(false);
+        showArrows(false);
+        showTags(false, [tagNarrow, tagWide]);
+        gsap.to("#stars", { opacity: 0, duration: 0.2 });
+      }
+      $("#levelBtn").addEventListener("click", () => { ensureAudio(); flow.start(); });
+
+      // ---------- Level 2: acht Pfeile rund um Bo ----------
+      const ARROW_R = 2.4;    // Abstand der Pfeile von Bo
+      const LIGHT = 0.44;     // immer gleich leichter Schubs: nur die schmale Seite kippt
+      const arrowEls = [];
+      let arrowsShown = false, arrowsActive = false, onArrow = null, lastArrow = 0;
+      for (let i = 0; i < 8; i++) {
+        const b = document.createElement("button");
+        b.className = "arrow";
+        b.setAttribute("aria-label", "Von hier schubsen");
+        b.innerHTML = "<span>➜</span>";
+        b.addEventListener("click", () => {
+          ensureAudio();
+          if (!arrowsActive || phys.fallen || phys.frozen || b.classList.contains("stood")) return;
+          gsap.fromTo(b, { scale: 0.8 }, { scale: 1, duration: 0.4, ease: "back.out(3)" });
+          onArrow?.(i);
+        });
+        $("#arrows").appendChild(b);
+        arrowEls.push(b);
+      }
+      function showArrows(on) {
+        arrowsShown = on || arrowsShown;
+        arrowEls.forEach((el) => (el.style.pointerEvents = on ? "auto" : "none"));
+        gsap.to(arrowEls, { opacity: on ? 1 : 0, duration: 0.35, stagger: on ? 0.04 : 0, onComplete: () => (arrowsShown = on) });
+      }
+      function resetArrows() { arrowEls.forEach((el) => el.classList.remove("stood", "fell")); }
+      // Pfeil i schubst Bo von außen zur Mitte hin
+      function arrowPush(i) {
+        const a = (i / 8) * Math.PI * 2;
+        lastPush = null;
+        pushWorld(-Math.cos(a), -Math.sin(a), LIGHT);
+        phys.pending = { strength: LIGHT };
+      }
+      // Bo dreht sich mit einem kleinen Hüpfer in die neue Stellung
+      function turnBo(yaw) {
+        if (Math.abs(yaw - pose.yaw) < 1e-3) return Promise.resolve();
+        squash.vel -= 3;
+        return new Promise((r) => gsap.to(pose, { yaw, duration: 0.8, ease: "back.inOut(1.6)", onComplete: () => { squash.vel += 2.5; r(); } }));
       }
 
       setPose(0.34, 1, true);
@@ -1062,7 +1322,7 @@
       flow.start();
 
       // Zum Testen in der Konsole
-      window.fels = { phys, pose, push, flow, geo };
+      window.fels = { phys, pose, push, pushWorld, flow, geo, arrowPush, setLevel };
     </script>
   </body>
 </html>
