@@ -14,7 +14,9 @@
 //   debug.js           Tasten D/H/A, HUD, Fortschrittsbalken
 
 import { createRenderer, createScene, createCamera, createPost, onResize, isMobile, reducedMotion } from "./setup.js";
-import { createCameraPath, createCameraRig, createPathHelper } from "./camera-path.js";
+import * as THREE from "three/webgpu";
+import gsap from "gsap";
+import { createCameraPath, createCameraRig, createPathHelper, SEAL_CENTER } from "./camera-path.js";
 import { createWorld, U } from "./scene.js";
 import { createScroll, startLoop, createAutoScroll } from "./scroll.js";
 import { prepareText, createIntro } from "./text-animations.js";
@@ -60,6 +62,33 @@ const autoScroll = createAutoScroll(lenis, {
 
 const debug = createDebug({ chapters, pathHelper, rig, renderer, autoScroll });
 
+// --- Siegel-Entdeckungen: Maus drückt die Splitter weg, Klick stempelt ---
+// Der Mausstrahl trifft die Ebene des Siegels; der Treffpunkt geht als uniform
+// in den Shader. Erst aktiv, wenn das Siegel fertig ist.
+const raycaster = new THREE.Raycaster();
+const sealPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -SEAL_CENTER.z);
+const ndc = new THREE.Vector2(9, 9);
+const hit = new THREE.Vector3();
+let overSeal = false;
+
+addEventListener("pointermove", (e) => {
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+});
+
+addEventListener("click", (e) => {
+  if (!overSeal || reducedMotion || e.target.closest("a")) return;
+  gsap.fromTo(U.stamp, { value: 0.9 }, { value: 0, duration: 1.8, ease: "elastic.out(1, 0.3)", overwrite: true });
+});
+
+function updatePointer(dt) {
+  raycaster.setFromCamera(ndc, camera);
+  const onPlane = raycaster.ray.intersectPlane(sealPlane, hit);
+  overSeal = U.form.value > 0.9 && onPlane !== null && hit.distanceTo(SEAL_CENTER) < 3.6;
+  if (overSeal) U.pointer.value.copy(hit);
+  U.pointerAmt.value = THREE.MathUtils.damp(U.pointerAmt.value, overSeal && !reducedMotion ? 1 : 0, 6, dt);
+  document.body.style.cursor = overSeal ? "pointer" : "";
+}
+
 // Shader vorab bauen, damit der erste Scroll nicht ruckelt
 rig.update(1);
 await renderer.compileAsync(scene, camera);
@@ -68,6 +97,7 @@ await renderer.compileAsync(scene, camera);
 startLoop(lenis, (dt) => {
   U.spinAngle.value += dt * U.spin.value * U.motion.value;
   rig.update(dt);
+  updatePointer(dt);
   debug.update(dt);
   pipeline.render();
 });

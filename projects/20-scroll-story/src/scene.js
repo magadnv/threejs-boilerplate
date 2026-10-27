@@ -43,7 +43,12 @@ export const U = {
   colorA: uniform(new THREE.Color("#e4ecff")),
   colorB: uniform(new THREE.Color("#5e7cff")),
   coreColor: uniform(new THREE.Color("#cfdcff")),
-  coreGlow: uniform(2.4),
+  coreGlow: uniform(3),
+  // Siegel: Lichtschimmer + zwei versteckte Entdeckungen (Maus drückt, Klick stempelt)
+  sweep: uniform(-6), // Position des Schimmers quer über das Siegel
+  pointer: uniform(new THREE.Vector3(0, 0, -100)), // Maus auf der Siegel-Ebene
+  pointerAmt: uniform(0),
+  stamp: uniform(0),
 };
 
 // Wie weit der Zeitversatz zwischen den Splittern reicht (0 = alle gleichzeitig)
@@ -191,8 +196,20 @@ export async function createWorld(scene, path, { count, reduced }) {
     .mul(free)
     .mul(U.motion);
 
-  const p1 = mix(aSphere.mul(breath), aScatter, e1).add(aArc.mul(sin(e1.mul(PI))));
-  const offset = mix(p1, aSeal, e2).add(aArc.mul(sin(e2.mul(PI)).mul(0.7))).add(drift);
+  // Die Kugel dreht sich langsam – auch ohne Scrollen lebt das erste Bild
+  const spun = rotate(aSphere.mul(breath), vec3(0.18, time.mul(0.14).mul(U.motion), 0));
+
+  // Maus auf dem Siegel: Splitter im Umkreis weichen zur Kamera hin aus
+  const toPointer = aSeal.xy.sub(U.pointer.xy);
+  const press = smoothstep(1.5, 0, toPointer.length()).mul(U.pointerAmt).mul(e2);
+  const push = vec3(toPointer.normalize().mul(press.mul(0.35)), press.mul(0.9));
+
+  const p1 = mix(spun, aScatter, e1).add(aArc.mul(sin(e1.mul(PI))));
+  const offset = mix(p1, aSeal, e2)
+    .add(aArc.mul(sin(e2.mul(PI)).mul(0.35))) // halber Bogen: ruhigeres Zusammensetzen
+    .add(aArc.mul(U.stamp).mul(e2)) // Klick: Stoß nach außen, federt zurück
+    .add(push)
+    .add(drift);
 
   // Im Siegel drehen sich alle auf dieselbe Ausrichtung → ruhige, einheitliche Fläche
   const rotation = aRot.mul(PI2).add(aRot.mul(U.spinAngle)).mul(e2.oneMinus());
@@ -206,7 +223,11 @@ export async function createWorld(scene, path, { count, reduced }) {
 
   const base = mix(U.colorA, U.colorB, aRnd.x);
   material.colorNode = base;
-  material.emissiveNode = base.mul(U.glow).mul(pow(aRnd.y, 6).mul(3.2).add(0.06));
+  // Schimmer: ein schmales Lichtband wandert diagonal über das fertige Siegel
+  const diag = aSeal.x.sub(SEAL_CENTER.x).add(aSeal.y.sub(SEAL_CENTER.y).mul(0.6));
+  const band = smoothstep(0.7, 0, diag.sub(U.sweep).abs()).mul(e2);
+  const sparkle = pow(aRnd.y, 6).mul(3.2).add(0.06);
+  material.emissiveNode = base.mul(U.glow).mul(sparkle).add(vec3(1, 0.92, 0.86).mul(band.mul(1.6).add(press.mul(1.2))));
 
   const shardSize = 0.075 * Math.sqrt(4000 / count);
   const geometry = new THREE.OctahedronGeometry(shardSize, 0);

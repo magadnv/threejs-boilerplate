@@ -68,9 +68,9 @@ export function createCameraPath() {
 // ------------------------------------------------------------
 export function createCameraRig(camera, path, { reduced, parallax }) {
   // Diese Werte animieren die Kapitel-Timelines
-  const state = { t: 0, pull: 0, lift: 0 };
+  const state = { t: 0, pull: 0, lift: 0, drop: 0 };
   // Die tatsächlich benutzten, gedämpften Werte
-  const smooth = { t: 0, pull: 0, lift: 0, mx: 0, my: 0 };
+  const smooth = { t: 0, pull: 0, lift: 0, drop: 0, mx: 0, my: 0 };
   const mouse = { x: 0, y: 0 };
 
   // Höher = straffer. Bei reduced motion fast ohne Nachschwingen.
@@ -95,6 +95,7 @@ export function createCameraRig(camera, path, { reduced, parallax }) {
     smooth.t = damp(smooth.t, state.t, LAMBDA, dt);
     smooth.pull = damp(smooth.pull, state.pull, LAMBDA * 0.6, dt);
     smooth.lift = damp(smooth.lift, state.lift, LAMBDA * 0.6, dt);
+    smooth.drop = damp(smooth.drop, state.drop, LAMBDA * 0.6, dt);
     // Parallax langsamer als Scroll – fühlt sich an wie eine Handkamera
     smooth.mx = damp(smooth.mx, mouse.x, 2.2, dt);
     smooth.my = damp(smooth.my, mouse.y, 2.2, dt);
@@ -102,6 +103,8 @@ export function createCameraRig(camera, path, { reduced, parallax }) {
     const u = clamp(smooth.t, 0, 1);
     path.cam.getPointAt(u, pos);
     path.look.getPoint(path.cam.getUtoTmapping(u), target);
+    // Blickziel senken = Motiv rutscht im Bild nach oben (Platz für die Outro-Headline)
+    target.y -= smooth.drop;
 
     // Kamera-Basis aus der Blickrichtung
     dir.subVectors(target, pos).normalize();

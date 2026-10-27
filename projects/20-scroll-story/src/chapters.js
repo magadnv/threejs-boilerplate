@@ -71,7 +71,11 @@ export function createChapters({ rig, path, world, post, scene, text, reduced })
     .to(core.scale, { x: 0.001, y: 0.001, z: 0.001, duration: 0.5, ease: "power2.in" }, 0.35)
     .to(lights.coreLight, { intensity: 0, duration: 0.5 }, 0.35)
     .to(U.glow, { value: 0.9, duration: 0.5 }, 0.4)
-    .to(post.bloomStrength, { value: 0.5, duration: 0.5 }, 0.2);
+    .to(post.bloomStrength, { value: 0.5, duration: 0.5 }, 0.2)
+    // Nah an der Kugel weniger Licht, sonst überstrahlt das Bild zu einer weißen Fläche
+    .to(lights.key, { intensity: 1.1, duration: 0.5 }, 0.2)
+    .to(scene, { environmentIntensity: 0.18, duration: 0.5 }, 0.2)
+    .to(post.bloomThreshold, { value: 0.6, duration: 0.5 }, 0.2);
   textIn(ch2, text.chapters[2], 0.06, opt);
   textOut(ch2, text.chapters[2].copy, 0.8, opt);
 
@@ -83,7 +87,8 @@ export function createChapters({ rig, path, world, post, scene, text, reduced })
     .to(state, { t: keys.journeyEnd, duration: 1, ease: "sine.inOut" }, 0)
     .to(U.scatter, { value: 1, duration: 0.55 }, 0)
     .to(scene.fog, { density: 0.042, duration: 0.4 }, 0.1)
-    .to(post.bloomStrength, { value: 0.95, duration: 0.4 }, 0.2);
+    .to(post.bloomStrength, { value: 0.95, duration: 0.4 }, 0.2)
+    .to(post.bloomThreshold, { value: 0.45, duration: 0.4 }, 0.2);
   toColor(ch3, U.colorA.value, "#a99bff", 0.1);
   toColor(ch3, U.colorB.value, "#20c9c0", 0.1);
   toColor(ch3, U.colorA.value, "#ff5a6e", 0.6);
@@ -116,11 +121,16 @@ export function createChapters({ rig, path, world, post, scene, text, reduced })
   // Startet schon, wenn die Section zu 40 % im Bild ist, und endet ganz unten.
   const ch5 = chapter(5, { start: "top 60%", end: "bottom bottom" });
   ch5
-    .to(state, { pull: 14, lift: 1.2, duration: 0.75, ease: "power2.inOut" }, 0)
+    .to(state, { pull: 14, lift: 1.2, drop: 2.6, duration: 0.75, ease: "power2.inOut" }, 0)
     .to(scene.fog, { density: 0.012, duration: 0.6 }, 0)
     .to(post.bloomStrength, { value: 0.55, duration: 0.6 }, 0.2)
     .to(post.vignette, { value: 0.6, duration: 0.6 }, 0.2);
   textIn(ch5, text.chapters[5], 0.4, opt);
+
+  // Lichtschimmer übers Siegel – läuft nach Zeit, sichtbar nur wenn es fertig ist
+  if (!reduced) {
+    gsap.fromTo(U.sweep, { value: -6 }, { value: 6, duration: 2.4, ease: "power2.inOut", repeat: -1, repeatDelay: 2.2 });
+  }
 
   return [ch1, ch2, ch3, ch4, ch5];
 }
