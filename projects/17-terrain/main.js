@@ -540,8 +540,22 @@ function showBadge(text) {
 // Flyover: Die Kamera bleibt im Ursprung. Bewegt wird nur die Welt
 // (uOffset, uHeading – siehe Endlos-Trick). Die Kamera schwebt leicht auf
 // und ab und legt sich in Kurven auf die Seite wie ein Flugzeug.
+// Handflug: WASD/Pfeile lenken dieselben Werte (Drehung, Höhe), die sonst
+// der Autopilot setzt. Nach ein paar Sekunden ohne Taste fliegt er wieder.
 
-const flight = { speed: 9, heading: 0, turnRate: 0 };
+const flight = {
+  speed: 9, // Grundtempo (GUI)
+  heading: 0, // Flugrichtung in Radiant
+  turnRate: 0, // aktuelle Drehung pro Sekunde (+ = rechts)
+  altitude: 0, // zusätzliche Höhe über der Grundhöhe (Handflug)
+  climbRate: 0, // aktuelles Steigen/Sinken pro Sekunde
+  boost: 1, // Faktor fürs Tempo (Shift)
+  lastInput: -Infinity, // Zeitpunkt der letzten Lenk-Eingabe
+  manual: false,
+};
+
+// Handflug: Wie lange nach der letzten Taste der Autopilot wieder übernimmt
+const AUTOPILOT_RETURN = 4;
 
 const controls = new OrbitControls(camera, canvas);
 controls.enabled = false;
@@ -554,15 +568,50 @@ function flightCameraHeight() {
   return uHeight.value * uValleyFloor.value + 4.5;
 }
 
+// Gedrückte Tasten merken. event.code statt event.key: „KeyW“ liegt immer
+// an derselben Stelle, egal ob QWERTZ, QWERTY oder Feststelltaste
+const pressed = new Set();
+const isDown = (...codes) => codes.some((c) => pressed.has(c));
+
 function updateFlight(time, delta) {
-  // Kurvenrate aus zwei langsamen Sinus mit „krummen“ Frequenzen:
+  // Eingabe: −1, 0 oder +1 pro Achse
+  const steer = (isDown("KeyD", "ArrowRight") ? 1 : 0) - (isDown("KeyA", "ArrowLeft") ? 1 : 0);
+  const climb = (isDown("KeyW", "ArrowUp") ? 1 : 0) - (isDown("KeyS", "ArrowDown") ? 1 : 0);
+  if (steer !== 0 || climb !== 0) flight.lastInput = time;
+
+  const manual = time - flight.lastInput < AUTOPILOT_RETURN;
+  if (manual !== flight.manual) {
+    flight.manual = manual;
+    showBadge(manual ? "Handflug" : "Autopilot");
+  }
+
+  // Ziel-Werte: im Handflug aus den Tasten, sonst vom Autopilot.
+  // Autopilot-Kurven aus zwei langsamen Sinus mit „krummen“ Frequenzen:
   // mal links, mal rechts, mal geradeaus – wiederholt sich kaum
-  flight.turnRate = 0.09 * Math.sin(time * 0.071) + 0.05 * Math.sin(time * 0.029 + 1.3);
+  const autoTurn = 0.09 * Math.sin(time * 0.071) + 0.05 * Math.sin(time * 0.029 + 1.3);
+  const targetTurn = manual ? steer * 0.7 : autoTurn;
+  const targetClimb = climb * 9;
+  const targetBoost = isDown("ShiftLeft", "ShiftRight") ? 2.5 : 1;
+
+  // Nie springen, immer weich hinziehen (unabhängig von der Bildrate) –
+  // so fühlt sich die Steuerung schwer an, wie ein Segelflieger
+  const soft = (rate) => 1 - Math.exp(-delta * rate);
+  flight.turnRate += (targetTurn - flight.turnRate) * soft(manual ? 3 : 1);
+  flight.climbRate += (targetClimb - flight.climbRate) * soft(3);
+  flight.boost += (targetBoost - flight.boost) * soft(2);
+
+  // Höhe: nicht unter die Grundhöhe (dort schützt uns das Flugtal),
+  // im Autopilot langsam zurück nach unten ins Tal
+  flight.altitude = THREE.MathUtils.clamp(flight.altitude + flight.climbRate * delta, 0, 60);
+  if (!manual) flight.altitude *= Math.exp(-delta * 0.25);
+
+  // heading größer = Kurve nach rechts (die Welt dreht sich links herum)
   flight.heading += flight.turnRate * delta;
 
   // Vorwärts in Noise-Richtung = (0, −1) gedreht um heading
-  uOffset.value.x += Math.sin(flight.heading) * flight.speed * delta;
-  uOffset.value.y -= Math.cos(flight.heading) * flight.speed * delta;
+  const step = flight.speed * flight.boost * delta;
+  uOffset.value.x += Math.sin(flight.heading) * step;
+  uOffset.value.y -= Math.cos(flight.heading) * step;
   uHeading.value = flight.heading;
 
   if (orbitMode) {
@@ -570,12 +619,13 @@ function updateFlight(time, delta) {
     return;
   }
 
-  const camY = flightCameraHeight() + Math.sin(time * 0.37) * 0.7;
+  const camY = flightCameraHeight() + flight.altitude + Math.sin(time * 0.37) * 0.7;
   camera.position.set(0, camY, 0);
   camera.up.set(0, 1, 0);
-  camera.lookAt(0, camY - 4.5, -40); // leicht nach unten geneigt
-  // In die Kurve legen: je schneller die Drehung, desto mehr Schräglage
-  camera.rotateZ(flight.turnRate * 1.6);
+  // Leicht nach unten geneigt; beim Steigen hebt sich die Nase, beim Sinken senkt sie sich
+  camera.lookAt(0, camY - 4.5 + flight.climbRate * 0.4, -40);
+  // In die Kurve legen: Rechtskurve → rechte Seite runter (negatives Rollen)
+  camera.rotateZ(-flight.turnRate * 0.6);
 }
 
 function toggleCamera() {
@@ -632,12 +682,27 @@ document.body.appendChild(stats.dom);
 // ============================================================
 // 16 · TASTEN
 // ============================================================
-// H Panel · F Format · S Screenshot · L Licht · C Kamera · N Seed
+// WASD / Pfeile fliegen · Shift Boost
+// H Panel · F Format · P Screenshot · L Licht · C Kamera · N Seed
+// (Screenshot liegt auf P, weil S jetzt sinken heißt)
 
 let screenshotRequested = false;
 
+const FLIGHT_KEYS = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight"];
+
+window.addEventListener("keyup", (event) => pressed.delete(event.code));
+// Fenster verliert den Fokus → keyup kommt nie an, also alles loslassen
+window.addEventListener("blur", () => pressed.clear());
+
 window.addEventListener("keydown", (event) => {
   if (event.target instanceof HTMLInputElement) return;
+
+  if (FLIGHT_KEYS.includes(event.code)) {
+    event.preventDefault(); // Pfeiltasten sollen nicht die Seite scrollen
+    pressed.add(event.code);
+    return;
+  }
+
   const k = event.key.toLowerCase();
 
   if (k === "h") document.body.classList.toggle("clean");
@@ -654,7 +719,7 @@ window.addEventListener("keydown", (event) => {
 
   // Nicht sofort speichern: der Canvas ist zwischen zwei Frames leer.
   // Wir merken uns den Wunsch und lesen direkt nach dem nächsten Render.
-  if (k === "s") screenshotRequested = true;
+  if (k === "p") screenshotRequested = true;
 });
 
 function saveScreenshot() {
