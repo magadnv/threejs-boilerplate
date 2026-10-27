@@ -113,6 +113,10 @@ const uWaterDeep = uniform(new THREE.Color());
 const uFogDensity = uniform(0.0075);
 const uBloomStrength = uniform(0.35);
 
+// Terrain-Gitter: halbe Kantenlänge und Segmente pro Seite
+const TERRAIN_RADIUS = 180;
+const TERRAIN_SEGMENTS = 512;
+
 // ============================================================
 // 3 · TERRAIN – fbm: Fractal Brownian Motion
 // ============================================================
@@ -130,12 +134,22 @@ const uBloomStrength = uniform(0.35);
 // wird zusätzlich mit der vorigen gewichtet: Details sitzen dann vor allem
 // auf den Graten, die Täler bleiben ruhig.
 
-const fbm = Fn(([p]) => {
+//
+// Anti-Flackern (LOD): Das Gitter steht still, das Noise rutscht darunter
+// durch. Ist eine Oktave feiner als der Abstand zweier Gitterpunkte, trifft
+// jeder Punkt jedes Frame eine zufällig andere Stelle der Welle – die Grate
+// zappeln (Aliasing). Darum bekommt fbm mit, wie viele Noise-Zellen auf
+// einen Gitterabstand fallen. Ab ~¼ Zelle pro Punkt wird die Oktave weich
+// auf ihren Mittelwert ausgeblendet. Nah an der Kamera (dichtes Gitter)
+// bleiben alle Oktaven, in der Ferne nur die groben.
+
+const fbm = Fn(([p, cellsPerVertex]) => {
   const q = p.toVar();
   const sum = float(0).toVar();
   const amp = float(0.5).toVar();
   const norm = float(0).toVar();
   const weight = float(1).toVar(); // nur für Ridged: Detail folgt den Graten
+  const cells = cellsPerVertex.toVar(); // wächst pro Oktave mit der Frequenz
 
   // Loop mit Uniform als Ende: Oktaven lassen sich live ändern
   Loop({ start: int(0), end: int(uOctaves) }, () => {
@@ -146,13 +160,18 @@ const fbm = Fn(([p]) => {
     const ridgedValue = ridge.mul(weight);
     weight.assign(ridge.mul(1.6).clamp(0, 1));
 
-    sum.addAssign(mix(smoothValue, ridgedValue, uRidged).mul(amp));
+    // 1 = Gitter löst die Oktave auf, 0 = zu fein → Mittelwert statt Noise
+    const resolvable = float(1).sub(smoothstep(0.15, 0.35, cells));
+    const value = mix(smoothValue, ridgedValue, uRidged);
+    const average = mix(float(0.5), float(0.3), uRidged);
+    sum.addAssign(mix(average, value, resolvable).mul(amp));
     norm.addAssign(amp);
 
     // Nächste Oktave: feiner, flacher – und leicht gedreht (36,9°),
     // damit die Raster der Schichten nicht übereinander liegen
     q.assign(vec2(q.x.mul(0.8).sub(q.y.mul(0.6)), q.x.mul(0.6).add(q.y.mul(0.8))).mul(uLacunarity).add(vec2(13.7, 7.1)));
     amp.mulAssign(uGain);
+    cells.mulAssign(uLacunarity);
   });
 
   return sum.div(norm); // grob 0 … 1, egal wie viele Oktaven
@@ -175,8 +194,17 @@ const toWorld = Fn(([xz]) => {
   return vec2(xz.x.mul(c).sub(xz.y.mul(s)), xz.x.mul(s).add(xz.y.mul(c))).add(uOffset);
 });
 
+// Gitterabstand an der Stelle xz (siehe createGround: Punkte liegen nach
+// außen immer lockerer). Ableitung der Verzerrung r = t^1.6 · R:
+//   Abstand ≈ 1,6 · R / (Segmente/2) · (r/R)^0,375
+const gridSpacing = Fn(([xz]) => {
+  const r = xz.x.abs().max(xz.y.abs()); // die gröbere der beiden Achsen
+  return r.div(TERRAIN_RADIUS).max(0.001).pow(0.375).mul((1.6 * TERRAIN_RADIUS) / (TERRAIN_SEGMENTS / 2));
+});
+
 const terrainHeight = Fn(([xz]) => {
-  const e = fbm(toWorld(xz).mul(uFrequency).add(uSeed));
+  const cellsPerVertex = gridSpacing(xz).mul(uFrequency);
+  const e = fbm(toWorld(xz).mul(uFrequency).add(uSeed), cellsPerVertex);
 
   // Formen: unten abschneiden (flache Talböden, dort steht später Wasser),
   // dann mit pow() die Gipfel spitzer und die Hänge steiler machen
@@ -197,8 +225,6 @@ const terrainHeight = Fn(([xz]) => {
 // Trick: Die Punkte liegen nicht gleichmäßig. Nah an der Kamera (Mitte)
 // dicht, zum Rand hin immer weiter auseinander. Vorne sieht man jedes
 // Detail, hinten verschluckt der Nebel ohnehin alles.
-
-const TERRAIN_RADIUS = 180;
 
 function createGround(segments) {
   const geometry = new THREE.PlaneGeometry(2, 2, segments, segments);
@@ -233,12 +259,14 @@ const terrainMaterial = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 });
 const flat = positionLocal.xz;
 const height = terrainHeight(flat);
 
-const e = 0.2;
+// Messabstand = Gitterabstand: nah fein, fern grob. So sieht die Normale
+// genau die Form, die das Gitter auch zeigt – kein Flimmern im Licht.
+const e = gridSpacing(flat).max(0.15);
 const hL = terrainHeight(flat.sub(vec2(e, 0)));
 const hR = terrainHeight(flat.add(vec2(e, 0)));
 const hB = terrainHeight(flat.sub(vec2(0, e)));
 const hF = terrainHeight(flat.add(vec2(0, e)));
-const terrainNormal = vec3(hL.sub(hR), e * 2, hB.sub(hF)).normalize();
+const terrainNormal = vec3(hL.sub(hR), e.mul(2), hB.sub(hF)).normalize();
 
 terrainMaterial.positionNode = vec3(positionLocal.x, height, positionLocal.z);
 // varying() rechnet im Vertex-Shader und reicht das Ergebnis an die Pixel
@@ -266,7 +294,10 @@ const snow = color("#f2f5fa");
 const y = positionWorld.y;
 const slope = vNormalWorld.normalize().y;
 const detail = mx_noise_float(vNoisePos.mul(0.25)); // −1 … 1, wandert mit der Welt
-const fine = mx_noise_float(vNoisePos.mul(1.7));
+// Feines Noise (Wellenlänge < 1) ist in der Ferne kleiner als ein Pixel und
+// würde flimmern – darum mit der Entfernung zur Kamera weich ausblenden
+const camDistance = positionWorld.sub(cameraPosition).length();
+const fine = mx_noise_float(vNoisePos.mul(1.7)).mul(float(1).sub(smoothstep(25, 90, camDistance)));
 
 // Gras in zwei Tönen, fleckig
 const grass = mix(grassDark, grassLight, detail.mul(0.5).add(0.5));
@@ -286,7 +317,7 @@ const wet = smoothstep(uWaterLevel.sub(0.4), uWaterLevel.add(0.1), y);
 terrainMaterial.colorNode = mix(terrainColor.mul(0.45), terrainColor, wet);
 terrainMaterial.roughnessNode = mix(float(0.95), float(0.5), snowAmount);
 
-const terrain = new THREE.Mesh(createGround(512), terrainMaterial);
+const terrain = new THREE.Mesh(createGround(TERRAIN_SEGMENTS), terrainMaterial);
 terrain.frustumCulled = false; // die echte Höhe kennt nur die GPU
 scene.add(terrain);
 
@@ -373,7 +404,9 @@ const we = 0.08;
 const w0 = waves(vWaterPos);
 const waveX = waves(vWaterPos.add(vec2(we, 0))).sub(w0);
 const waveZ = waves(vWaterPos.add(vec2(0, we))).sub(w0);
-const waterNormal = vec3(waveX.mul(-0.22 / we), 1, waveZ.mul(-0.22 / we)).normalize();
+// In der Ferne werden die Wellen flacher: kleiner als ein Pixel würden sie nur flimmern
+const waveStrength = float(-0.22 / we).mul(float(1).sub(smoothstep(30, 120, fogDistance).mul(0.85)));
+const waterNormal = vec3(waveX.mul(waveStrength), 1, waveZ.mul(waveStrength)).normalize();
 
 const reflected = reflect(viewDir, waterNormal);
 const facingWater = viewDir.negate().dot(waterNormal).max(0);
