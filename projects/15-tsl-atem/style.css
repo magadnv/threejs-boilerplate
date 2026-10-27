@@ -1,0 +1,50 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  font: 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  color: #8a8a8a;
+}
+
+/* Feste Formate (1:1, 16:9) werden per JS auf die Fensterhöhe skaliert */
+#scene {
+  display: block;
+  outline: 1px solid #1a1a1a;
+}
+
+#hint {
+  position: fixed;
+  left: 16px;
+  bottom: 14px;
+  letter-spacing: 0.04em;
+}
+
+#badge {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+
+#badge.show {
+  opacity: 1;
+}
+
+/* Taste H: alles außer der Kugel ausblenden */
+body.clean #hint,
+body.clean .lil-gui {
+  display: none;
+}
