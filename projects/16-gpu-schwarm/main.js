@@ -351,6 +351,19 @@ look.addColor(uColorFast, "value").name("Farbe schnell");
 look.add(uSpeedRange, "value", 0.3, 8, 0.01).name("Tempo für „heiß“");
 look.add(uBloomStrength, "value", 0, 2, 0.01).name("Bloom-Stärke");
 
+// Zufällige Farbkombi (Taste C): dunkle, satte Basis für langsame Partikel,
+// heller Akzent für schnelle – mit 110–250° Abstand auf dem Farbkreis,
+// damit beide sich klar abheben. HSL im sRGB-Raum, so wie wir Farben sehen.
+function randomPalette() {
+  const hue = Math.random();
+  const offset = 0.3 + Math.random() * 0.4;
+  uColorSlow.value.setHSL(hue, 0.85 + Math.random() * 0.15, 0.3 + Math.random() * 0.15, THREE.SRGBColorSpace);
+  uColorFast.value.setHSL((hue + offset) % 1, 0.75 + Math.random() * 0.25, 0.6 + Math.random() * 0.15, THREE.SRGBColorSpace);
+  gui.controllersRecursive().forEach((c) => c.updateDisplay());
+  showBadge(`Farben #${uColorSlow.value.getHexString()} → #${uColorFast.value.getHexString()}`);
+}
+look.add({ randomPalette }, "randomPalette").name("Zufallsfarben (C)");
+
 // stats.js misst die Frame-Zeit: 60 (oder 120) fps = die GPU schafft es locker
 const stats = new Stats();
 stats.dom.id = "stats";
@@ -408,7 +421,7 @@ function updateTarget(time, delta) {
 // ============================================================
 // 12 · CONTROLS – Tasten
 // ============================================================
-// H Panel · F Format · S Screenshot · R Reset · A Autopilot · Leertaste Impuls
+// H Panel · F Format · S Screenshot · R Reset · A Autopilot · C Farben · Leertaste Impuls
 
 let screenshotRequested = false;
 
@@ -435,6 +448,8 @@ window.addEventListener("keydown", (event) => {
     autopilotPinned = autopilot;
     showBadge(autopilot ? "Autopilot an" : "Autopilot aus");
   }
+
+  if (k === "c") randomPalette();
 
   if (k === " ") {
     event.preventDefault();
