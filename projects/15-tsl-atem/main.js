@@ -337,6 +337,63 @@ extras.add(params.magnetStrength, "value", 0, 0.8, 0.01).name("Magnet-Stärke");
 extras.add(params.magnetRadius, "value", 0.1, 1.5, 0.01).name("Magnet-Radius");
 
 // ============================================================
+// 11b · Zufalls-Farben (Taste R, zurück mit Z)
+// ============================================================
+// Nicht völlig wild würfeln, sondern nach Farbharmonie: Farbe A ist immer
+// ein sehr dunkler Ton (Täler), Farbe B ein satter, heller (Wölbungen).
+// Der Farbton von B hängt über eine Regel am Farbton von A.
+
+const harmonies = [
+  { name: "Ton in Ton", offset: () => 0 },
+  { name: "Nachbarn", offset: () => (Math.random() < 0.5 ? -1 : 1) * (20 + Math.random() * 25) },
+  { name: "Gegenfarbe", offset: () => 180 + (Math.random() - 0.5) * 30 },
+  { name: "Dreiklang", offset: () => (Math.random() < 0.5 ? 120 : 240) },
+];
+
+const colorHistory = [];
+const fade = { from: [new THREE.Color(), new THREE.Color()], to: [new THREE.Color(), new THREE.Color()], t: 1 };
+
+function fadeTo(a, b, label) {
+  fade.from[0].copy(params.colorA.value);
+  fade.from[1].copy(params.colorB.value);
+  fade.to[0].copy(a);
+  fade.to[1].copy(b);
+  fade.t = 0;
+  showBadge(`${label} · #${a.getHexString()} / #${b.getHexString()}`);
+}
+
+function randomColors() {
+  colorHistory.push([params.colorA.value.clone(), params.colorB.value.clone()]);
+
+  const harmony = harmonies[Math.floor(Math.random() * harmonies.length)];
+  const hueA = Math.random() * 360;
+  const hueB = (hueA + harmony.offset() + 360) % 360;
+
+  // setHSL: Farbton 0…1, Sättigung 0…1, Helligkeit 0…1
+  const a = new THREE.Color().setHSL(hueA / 360, 0.6 + Math.random() * 0.35, 0.03 + Math.random() * 0.05);
+  const b = new THREE.Color().setHSL(hueB / 360, 0.75 + Math.random() * 0.25, 0.32 + Math.random() * 0.14);
+  fadeTo(a, b, harmony.name);
+}
+
+function previousColors() {
+  const last = colorHistory.pop();
+  if (last) fadeTo(last[0], last[1], "Zurück");
+}
+
+// Weich überblenden statt springen – sieht auch im Clip gut aus
+function updateFade(delta) {
+  if (fade.t >= 1) return;
+  fade.t = Math.min(1, fade.t + delta / 0.6);
+  const k = fade.t * fade.t * (3 - 2 * fade.t); // smoothstep in JS
+  params.colorA.value.lerpColors(fade.from[0], fade.to[0], k);
+  params.colorB.value.lerpColors(fade.from[1], fade.to[1], k);
+  look.controllers.forEach((c) => c.updateDisplay()); // GUI-Farbfelder mitziehen
+}
+
+look.add({ randomColors }, "randomColors").name("🎲 Zufall (R)");
+look.add({ previousColors }, "previousColors").name("↩ Zurück (Z)");
+
+// ============================================================
 // 12 · Maus-Magnet
 // ============================================================
 // Die Kugel liegt im Ursprung und dreht sich nicht (nur die Kamera kreist),
@@ -387,6 +444,8 @@ window.addEventListener("keydown", (event) => {
   const k = event.key.toLowerCase();
 
   if (k === "h") document.body.classList.toggle("clean");
+  if (k === "r") randomColors();
+  if (k === "z") previousColors();
 
   if (k === "f") {
     formatIndex = (formatIndex + 1) % formats.length;
@@ -423,6 +482,7 @@ renderer.setAnimationLoop((timestamp) => {
   phase.value += delta * params.speed.value;
 
   updateMagnet(delta);
+  updateFade(delta);
   controls.update();
   renderPipeline.render();
 
