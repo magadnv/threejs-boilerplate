@@ -26,7 +26,7 @@ export async function prepareText() {
     const copy = section.querySelector(".copy");
     chapters[section.dataset.chapter] = {
       copy,
-      split: SplitText.create(copy.querySelector(".title"), { type: "words,chars", mask: "chars" }),
+      split: SplitText.create(copy.querySelector(".title"), { type: "words,chars", mask: "chars", charsClass: "char" }),
       rest: copy.querySelectorAll(".eyebrow, .lead, .cta"),
     };
   }
@@ -66,7 +66,7 @@ export function textIn(tl, { copy, split, rest }, at, { reduced }) {
     return;
   }
   tl.fromTo(copy, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.01 }, at);
-  tl.from(split.chars, { yPercent: 115, rotate: 8, stagger: { amount: 0.1 }, duration: 0.16, ease: "power3.out" }, at);
+  tl.from(split.chars, { yPercent: 140, rotate: 8, stagger: { amount: 0.1 }, duration: 0.16, ease: "power3.out" }, at);
   tl.from(rest, { y: 24, autoAlpha: 0, duration: 0.14, stagger: 0.03, ease: "power2.out" }, at + 0.06);
 }
 
