@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="description" content="Der Fels – Kinder spüren, warum tief und breit stark macht. Level 1: Schwerpunkt über der Basis." />
+    <title>Der Fels</title>
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js"
+        }
+      }
+    </script>
+    <style>
+      /* ---------- Farben & Grundlagen ---------- */
+      :root {
+        --bg: #fff3e3;
+        --ink: #2b1b17;
+        --red: #cf1830;
+        --white: #ffffff;
+        --ok: #1db954;
+        --out: #e5243b;
+        --gold: #ffd23f;
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body {
+        margin: 0; height: 100%; overflow: hidden;
+        background: var(--bg); color: var(--ink);
+        font-family: "Fredoka", system-ui, sans-serif;
+        user-select: none; -webkit-user-select: none;
+        touch-action: none; overscroll-behavior: none;
+      }
+      canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+      /* ---------- Satz oben (max. ein Satz pro Screen) ---------- */
+      #say {
+        position: fixed; left: 16px; right: 16px; top: calc(18px + var(--safe-top));
+        text-align: center; font-weight: 700; line-height: 1.1;
+        font-size: clamp(28px, 6vw, 52px); letter-spacing: -0.01em;
+        pointer-events: none; text-wrap: balance;
+      }
+      #stars {
+        position: fixed; left: 50%; top: calc(18px + var(--safe-top) + clamp(40px, 8vw, 70px));
+        transform: translateX(-50%); display: flex; gap: 10px;
+        font-size: clamp(30px, 6vw, 44px); pointer-events: none; opacity: 0;
+      }
+      #stars span { color: #e7d3bd; display: inline-block; }
+      #stars span.on { color: var(--gold); text-shadow: 0 2px 0 #c99a00; }
+
+      /* ---------- Knöpfe ---------- */
+      button { font-family: inherit; cursor: pointer; border: 0; }
+      .btn {
+        background: var(--red); color: var(--white); font-weight: 700;
+        font-size: clamp(24px, 4.5vw, 34px); padding: 18px 44px; border-radius: 999px;
+        box-shadow: 0 6px 0 #8f0f20, 0 14px 30px rgba(207, 24, 48, 0.3);
+        transition: transform 0.12s;
+      }
+      .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #8f0f20; }
+      #action {
+        position: fixed; left: 50%; bottom: calc(28px + var(--safe-bottom));
+        transform: translateX(-50%); opacity: 0; pointer-events: none;
+      }
+      #sound {
+        position: fixed; right: calc(14px + env(safe-area-inset-right, 0px)); top: calc(14px + var(--safe-top));
+        width: 52px; height: 52px; border-radius: 50%; background: var(--white);
+        font-size: 24px; box-shadow: 0 3px 0 #e7d3bd; z-index: 5;
+      }
+
+      /* ---------- Karte (Start, Fragen, Merksatz) ---------- */
+      #card {
+        position: fixed; inset: 0; display: grid; place-items: center; z-index: 4;
+        background: rgba(255, 243, 227, 0.72); backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px); opacity: 0; pointer-events: none;
+      }
+      #card .inner { text-align: center; padding: 16px; max-width: 760px; }
+      #card h1 {
+        margin: 0 0 10px; font-weight: 700; line-height: 1;
+        font-size: clamp(44px, 10vw, 96px); color: var(--red); text-wrap: balance;
+        white-space: pre-line;
+      }
+      #card h1.long { font-size: clamp(34px, 6.4vw, 68px); }
+      #card .inner:has(h1.long) { max-width: 1000px; }
+      #card p {
+        margin: 0 0 30px; font-weight: 600; line-height: 1.15;
+        font-size: clamp(26px, 5vw, 42px); text-wrap: balance;
+      }
+      #card .seal {
+        width: 96px; height: 96px; margin: 0 auto 18px; border-radius: 50%;
+        border: 6px solid var(--red); display: grid; place-items: center;
+        font-size: 48px; background: var(--white);
+      }
+
+      /* ---------- Slider (touch-first, große Griffe) ---------- */
+      .slider { position: fixed; z-index: 3; opacity: 0; pointer-events: none; touch-action: none; }
+      .slider .track { position: absolute; background: var(--white); border-radius: 999px; box-shadow: inset 0 3px 0 #ead8c4; }
+      .slider .fill { position: absolute; background: var(--red); border-radius: 999px; opacity: 0.18; }
+      .slider .thumb {
+        position: absolute; width: 64px; height: 64px; border-radius: 50%;
+        background: var(--red); color: var(--white); display: grid; place-items: center;
+        font-size: 30px; font-weight: 700; box-shadow: 0 5px 0 #8f0f20, 0 10px 24px rgba(0,0,0,0.18);
+        transform: translate(-50%, -50%);
+      }
+      .slider .end { position: absolute; font-weight: 700; font-size: 20px; color: #8a6a55; white-space: nowrap; }
+      /* horizontal: Beine schmal ↔ breit */
+      #sWidth { left: 50%; bottom: calc(34px + var(--safe-bottom)); width: min(560px, calc(100vw - 200px)); height: 64px; transform: translateX(-50%); }
+      #sWidth .track { left: 0; right: 0; top: 20px; height: 24px; }
+      #sWidth .thumb { top: 32px; }
+      #sWidth .end.a { right: calc(100% + 14px); top: 18px; }
+      #sWidth .end.b { left: calc(100% + 14px); top: 18px; }
+      /* vertikal: Hüfte hoch ↕ tief */
+      #sHip { right: calc(22px + env(safe-area-inset-right, 0px)); top: 50%; width: 64px; height: min(330px, 46vh); transform: translateY(-50%); }
+      #sHip .track { top: 0; bottom: 0; left: 20px; width: 24px; }
+      #sHip .thumb { left: 32px; }
+      #sHip .end.a { bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); }
+      #sHip .end.b { top: calc(100% + 10px); left: 50%; transform: translateX(-50%); }
+      @media (max-width: 600px) {
+        #sWidth { width: calc(100vw - 190px); left: calc(50% - 40px); }
+        .slider .end { font-size: 16px; }
+      }
+
+      /* ---------- Kleine Helfer ---------- */
+      .ripple {
+        position: fixed; width: 90px; height: 90px; margin: -45px 0 0 -45px; border-radius: 50%;
+        border: 6px solid var(--red); pointer-events: none; z-index: 2;
+      }
+      #hand { position: fixed; font-size: 64px; pointer-events: none; opacity: 0; z-index: 2; }
+      .tag {
+        position: fixed; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 20px;
+        background: var(--white); pointer-events: none; opacity: 0; transform: translate(-50%, -50%);
+        box-shadow: 0 3px 0 rgba(0,0,0,0.08); white-space: nowrap; z-index: 2;
+      }
+      #tagCom { color: #b98900; }
+      #tagBase { color: var(--ok); }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="say" aria-live="polite"></div>
+    <div id="stars" aria-hidden="true"><span>★</span><span>★</span><span>★</span></div>
+    <button id="sound" aria-label="Ton an oder aus">🔊</button>
+    <button id="action" class="btn"></button>
+
+    <div id="sWidth" class="slider" aria-label="Beine breiter oder schmaler">
+      <div class="track"></div><div class="fill"></div>
+      <div class="thumb">↔</div>
+      <span class="end a">schmal</span><span class="end b">breit</span>
+    </div>
+    <div id="sHip" class="slider" aria-label="Hüfte höher oder tiefer">
+      <div class="track"></div><div class="fill"></div>
+      <div class="thumb">↕</div>
+      <span class="end a">hoch</span><span class="end b">tief</span>
+    </div>
+
+    <div id="hand">👆</div>
+    <div id="tagCom" class="tag">Kugel</div>
+    <div id="tagBase" class="tag">Fläche</div>
+
+    <div id="card"><div class="inner">
+      <div class="seal" hidden>🪨</div>
+      <h1></h1>
+      <p></p>
+      <button class="btn"></button>
+    </div></div>
+
+    <script type="module">
+      import * as THREE from "three";
+
+      /* =====================================================================
+         DER FELS · Level 1
+         Ein Satz für Kinder: „Tief und breit = stark. Hoch und schmal = du fällst um.“
+
+         Physik: Die Figur ist ein starrer Körper, der um die Kante seiner Basis
+         kippt (Housner-Kippblock). Pro Achse (links/rechts = x, vorne/hinten = z):
+           b  = halbe Breite der Basis, h = Höhe des Schwerpunkts
+           α  = atan(b / h)  → so weit darf sie kippen, bevor die Kugel aus der Fläche rutscht
+           φ'' = −p² · sin(α·sgn φ − φ),  p² = 3g / (4R),  R = √(b² + h²)
+         Solange |φ| < α, zieht die Schwerkraft sie zurück (Wackeln).
+         Wird |φ| > α, liegt die Schwerpunkt-Projektion außerhalb der Basis → sie fällt.
+         Das ist genau der Lernsatz, deshalb rechnen wir ihn direkt statt über eine
+         allgemeine Physik-Engine: vorhersagbar, winzig und flüssig auf jedem Tablet.
+         ===================================================================== */
+
+      // ---------- Einstellungen ----------
+      const G = 9.81;            // Schwerkraft (Welteinheiten / s²)
+      const THIGH = 0.75;        // Länge Oberschenkel = Unterschenkel
+      const HIP_HALF = 0.2;      // halber Abstand der Hüftgelenke
+      const FOOT_HALF_X = 0.15;  // halbe Fußbreite
+      const FOOT_HALF_Z = 0.27;  // halbe Fußlänge (die schmale Seite vorne/hinten)
+      const MIN_W = 0.3, MAX_W = 1.5;   // Fußabstand
+      const MIN_HIP = 0.72;             // tiefste Hüfte
+      const COM_ABOVE_HIP = 0.45;       // Schwerpunkt sitzt etwas über der Hüfte
+      const PUSH = 1.7;                 // Stärke eines normalen Tipps
+      const Z_PUSH = 0.35;              // Level 1: Schubse wirken vor allem seitlich
+      const COLORS = {
+        bg: 0xfff3e3, mat: 0xf9b233, matBorder: 0xcf1830, gi: 0xffffff,
+        head: 0x14b8a6, belt: 0xff6b00, ok: 0x1db954, out: 0xe5243b, gold: 0xffd23f,
+      };
+
+      // ---------- Renderer, Szene, Kamera ----------
+      const canvas = document.getElementById("scene");
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(COLORS.bg);
+      scene.fog = new THREE.Fog(COLORS.bg, 18, 34);
+
+      const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
+      const camLook = new THREE.Vector3(0, 1.3, 0);
+
+      scene.add(new THREE.HemisphereLight(0xfff8ee, 0xf2a65a, 1.6));
+      const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+      sun.position.set(-4, 9, 6);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(1024, 1024);
+      Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 1, far: 25 });
+      sun.shadow.radius = 6;
+      scene.add(sun);
+
+      // ---------- Matte ----------
+      const mat = new THREE.Mesh(
+        new THREE.BoxGeometry(14, 0.3, 9),
+        new THREE.MeshStandardMaterial({ color: COLORS.matBorder, roughness: 0.9 })
+      );
+      mat.position.y = -0.15;
+      mat.receiveShadow = true;
+      scene.add(mat);
+      const matInner = new THREE.Mesh(
+        new THREE.PlaneGeometry(12, 7),
+        new THREE.MeshStandardMaterial({ color: COLORS.mat, roughness: 0.95 })
+      );
+      matInner.rotation.x = -Math.PI / 2;
+      matInner.position.y = 0.001;
+      matInner.receiveShadow = true;
+      scene.add(matInner);
+
+      // ---------- Basis-Fläche zwischen den Füßen (bleibt am Boden) ----------
+      function roundedRectTexture() {
+        const c = document.createElement("canvas");
+        c.width = c.height = 256;
+        const g = c.getContext("2d");
+        const r = 70, p = 8;
+        g.beginPath();
+        g.roundRect(p, p, 256 - 2 * p, 256 - 2 * p, r);
+        g.fillStyle = "rgba(255,255,255,0.55)";
+        g.fill();
+        g.lineWidth = 12;
+        g.strokeStyle = "rgba(255,255,255,1)";
+        g.stroke();
+        const t = new THREE.CanvasTexture(c);
+        t.colorSpace = THREE.SRGBColorSpace;
+        return t;
+      }
+      const baseMat = new THREE.MeshBasicMaterial({
+        map: roundedRectTexture(), color: COLORS.ok, transparent: true, depthWrite: false,
+      });
+      const basePlate = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), baseMat);
+      basePlate.rotation.x = -Math.PI / 2;
+      basePlate.position.y = 0.01;
+      basePlate.renderOrder = 1;
+      scene.add(basePlate);
+
+      // ---------- Die Figur (Low-Poly, rund, freundlich) ----------
+      const toon = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.55, flatShading: true });
+      const mGi = toon(COLORS.gi), mHead = toon(COLORS.head), mBelt = toon(COLORS.belt);
+      const mDark = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+      const mCheek = new THREE.MeshBasicMaterial({ color: 0xff8fa3 });
+      const ico = (r, d = 1) => new THREE.IcosahedronGeometry(r, d);
+      const shadowy = (m) => ((m.castShadow = true), m);
+
+      // figure = Wurzel, wird über eine Matrix um die Kippkante gedreht
+      const figure = new THREE.Group();
+      figure.matrixAutoUpdate = false;
+      scene.add(figure);
+
+      // Oberkörper-Gruppe sitzt auf der Hüfte und federt (Squash & Stretch)
+      const upper = new THREE.Group();
+      figure.add(upper);
+      const torso = shadowy(new THREE.Mesh(ico(1, 2), mGi));
+      torso.scale.set(0.6, 0.62, 0.48);
+      torso.position.y = 0.42;
+      upper.add(torso);
+      const belt = shadowy(new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.07, 6, 18), mBelt));
+      belt.rotation.x = Math.PI / 2;
+      belt.scale.set(1, 0.82, 1);
+      belt.position.y = 0.2;
+      upper.add(belt);
+      const knot = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.26, 0.05), mBelt));
+      knot.position.set(0.12, 0.08, 0.46);
+      knot.rotation.z = 0.35;
+      upper.add(knot);
+
+      const head = new THREE.Group();
+      head.position.y = 1.2;
+      upper.add(head);
+      head.add(shadowy(new THREE.Mesh(ico(0.42, 2), mHead)));
+      const eyes = [];
+      for (const s of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 8), mDark);
+        eye.position.set(s * 0.14, 0.05, 0.38);
+        head.add(eye);
+        eyes.push(eye);
+        const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.06, 12), mCheek);
+        cheek.position.set(s * 0.25, -0.08, 0.34);
+        cheek.rotation.y = s * 0.55;
+        head.add(cheek);
+      }
+      const smile = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.018, 6, 12, Math.PI), mDark);
+      smile.position.set(0, -0.07, 0.4);
+      smile.rotation.z = Math.PI;
+      head.add(smile);
+
+      // Schwindel-Sterne nach dem Umfallen
+      const dizzy = new THREE.Group();
+      dizzy.position.y = 0.62;
+      dizzy.visible = false;
+      head.add(dizzy);
+      const starShape = new THREE.Shape();
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 - Math.PI / 2, r = i % 2 ? 0.05 : 0.12;
+        i ? starShape.lineTo(Math.cos(a) * r, Math.sin(a) * r) : starShape.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      const starGeo = new THREE.ExtrudeGeometry(starShape, { depth: 0.03, bevelEnabled: false });
+      for (let i = 0; i < 3; i++) {
+        const st = new THREE.Mesh(starGeo, new THREE.MeshBasicMaterial({ color: COLORS.gold }));
+        const a = (i / 3) * Math.PI * 2;
+        st.position.set(Math.cos(a) * 0.4, 0, Math.sin(a) * 0.4);
+        dizzy.add(st);
+      }
+
+      // Arme hängen locker und schwingen beim Wackeln nach
+      const arms = [];
+      for (const s of [-1, 1]) {
+        const pivot = new THREE.Group();
+        pivot.position.set(s * 0.52, 0.72, 0);
+        const arm = shadowy(new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.42, 3, 8), mGi));
+        arm.position.y = -0.26;
+        pivot.add(arm);
+        const hand = shadowy(new THREE.Mesh(ico(0.12, 1), mHead));
+        hand.position.y = -0.56;
+        pivot.add(hand);
+        pivot.rotation.z = s * 0.35;
+        upper.add(pivot);
+        arms.push({ pivot, s, swing: 0, vel: 0 });
+      }
+
+      // Beine: Ober- und Unterschenkel als Zylinder, Gelenke als Kugeln (2-Knochen-IK)
+      const limbGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
+      const legs = [-1, 1].map((s) => {
+        const thigh = shadowy(new THREE.Mesh(limbGeo, mGi));
+        const shin = shadowy(new THREE.Mesh(limbGeo, mGi));
+        thigh.scale.set(0.14, 1, 0.14);
+        shin.scale.set(0.12, 1, 0.12);
+        const knee = shadowy(new THREE.Mesh(ico(0.135, 1), mGi));
+        const hip = shadowy(new THREE.Mesh(ico(0.15, 1), mGi));
+        const foot = shadowy(new THREE.Mesh(ico(1, 1), mHead));
+        foot.scale.set(FOOT_HALF_X, 0.1, FOOT_HALF_Z);
+        figure.add(thigh, shin, knee, hip, foot);
+        return { s, thigh, shin, knee, hip, foot };
+      });
+
+      // ---------- Haltung: Fußabstand w + Hüfthöhe → Beine, Basis, Schwerpunkt ----------
+      const pose = { w: 0.34, t: 1, wTarget: 0.34, tTarget: 1, hipY: 1.4 };
+      const UP = new THREE.Vector3(0, 1, 0);
+      const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpC = new THREE.Vector3();
+
+      function maxHip(w) {
+        const dx = w / 2 - HIP_HALF;
+        return Math.sqrt(Math.max(0.01, (2 * THIGH * 0.97) ** 2 - dx * dx));
+      }
+
+      function placeLimb(mesh, a, b) {
+        mesh.position.copy(a).add(b).multiplyScalar(0.5);
+        tmpC.copy(b).sub(a);
+        mesh.scale.y = tmpC.length();
+        mesh.quaternion.setFromUnitVectors(UP, tmpC.normalize());
+      }
+
+      function applyPose() {
+        const { w, t } = pose;
+        pose.hipY = THREE.MathUtils.lerp(MIN_HIP, maxHip(w), t);
+        upper.position.y = pose.hipY;
+        for (const L of legs) {
+          const H = tmpA.set(L.s * HIP_HALF, pose.hipY, 0);
+          const F = tmpB.set(L.s * w / 2, 0.12, 0);
+          const d = Math.min(H.distanceTo(F), 2 * THIGH - 0.001);
+          const u = F.clone().sub(H).normalize();
+          // Knie zeigt nach vorne und leicht nach außen
+          const v = new THREE.Vector3(L.s * 0.35, 0, 1);
+          v.addScaledVector(u, -v.dot(u)).normalize();
+          const K = H.clone().add(F).multiplyScalar(0.5).addScaledVector(v, Math.sqrt(THIGH * THIGH - (d / 2) ** 2));
+          placeLimb(L.thigh, H, K);
+          placeLimb(L.shin, K, F);
+          L.hip.position.copy(H);
+          L.knee.position.copy(K);
+          L.foot.position.set(L.s * w / 2, 0.08, 0.05);
+        }
+      }
+
+      // Kenngrößen für die Physik
+      const geo = () => ({
+        bx: pose.w / 2 + FOOT_HALF_X,
+        bz: FOOT_HALF_Z,
+        h: pose.hipY + COM_ABOVE_HIP,
+      });
+
+      // ---------- Physik: Kippblock pro Achse ----------
+      const phys = {
+        x: { phi: 0, w: 0, lie: Math.PI / 2 },
+        z: { phi: 0, w: 0, lie: Math.PI / 2 },
+        fallen: false, frozen: false, timeScale: 1,
+        pending: null, // laufender Schubs, wartet auf „steht“ oder „fällt“
+      };
+
+      // Winkel, bei dem Bauch/Kopf den Boden berühren (damit sie schön liegt)
+      function lieAngle(b, alpha, rBody) {
+        const yT = pose.hipY + 0.42, yH = pose.hipY + 1.2;
+        for (let a = alpha; a < Math.PI / 2; a += 0.005) {
+          const s = Math.sin(a), c = Math.cos(a);
+          if (b * s + yT * c <= rBody || b * s + yH * c <= 0.42) return a;
+        }
+        return Math.PI / 2;
+      }
+
+      function stepAxis(ax, b, h, dt) {
+        if (ax.phi === 0 && ax.w === 0) return;
+        const R = Math.hypot(b, h), alpha = Math.atan2(b, h);
+        const p2 = (3 * G) / (4 * R);
+        const sgn = Math.sign(ax.phi || ax.w);
+        ax.w += -p2 * Math.sin(alpha * sgn - ax.phi) * dt;
+        ax.w *= 1 - 0.8 * dt; // etwas Luft-/Muskeldämpfung
+        const next = ax.phi + ax.w * dt;
+        // Aufprall auf die andere Fußkante: Energie geht verloren (Housner)
+        if (ax.phi !== 0 && Math.sign(next) !== Math.sign(ax.phi)) {
+          const e = Math.max(0.5, 1 - 1.5 * Math.sin(alpha) ** 2);
+          ax.w *= e;
+          squash.vel += Math.min(2.5, Math.abs(ax.w) * 1.4);
+        }
+        ax.phi = next;
+        if (Math.abs(ax.phi) < 0.003 && Math.abs(ax.w) < 0.05) ax.phi = ax.w = 0;
+        if (Math.abs(ax.phi) >= ax.lie) land(ax);
+      }
+
+      function stepPhysics(dt) {
+        if (phys.fallen || phys.frozen) return;
+        const { bx, bz, h } = geo();
+        phys.x.lie = lieAngle(bx, Math.atan2(bx, h), 0.6);
+        phys.z.lie = lieAngle(bz, Math.atan2(bz, h), 0.48);
+        const n = Math.ceil(dt / (1 / 300));
+        for (let i = 0; i < n && !phys.fallen; i++) {
+          stepAxis(phys.x, bx, h, dt / n);
+          stepAxis(phys.z, bz, h, dt / n);
+        }
+      }
+
+      // Schubs: Drehimpuls um die Kippkante, aufgeteilt auf beide Achsen
+      function push(dirX, dirZ, strength) {
+        const { bx, bz, h } = geo();
+        const len = Math.hypot(dirX, dirZ) || 1;
+        const k = PUSH * strength;
+        phys.x.w += (dirX / len) * k * h / (bx * bx + h * h);
+        phys.z.w += (dirZ / len) * Z_PUSH * k * h / (bz * bz + h * h);
+        squash.vel += 2.2 * strength;
+        for (const a of arms) a.vel -= (dirX / len) * 6 * strength;
+        sfx.boing(strength);
+      }
+
+      function land(ax) {
+        ax.phi = Math.sign(ax.phi) * ax.lie;
+        phys.x.w = phys.z.w = 0;
+        phys.fallen = true;
+        squash.vel += 3;
+        sfx.plopp();
+        dizzy.visible = true;
+        gsap.fromTo(dizzy.scale, { x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 1, duration: 0.5, ease: "back.out(3)" });
+        eyes.forEach((e) => gsap.to(e.scale, { y: 0.2, duration: 0.15 }));
+      }
+
+      // Weich wieder aufstehen
+      function standUp(duration = 0.9) {
+        return new Promise((resolve) => {
+          phys.frozen = true;
+          phys.x.w = phys.z.w = 0;
+          gsap.to(dizzy.scale, { x: 0, y: 0, z: 0, duration: 0.25, onComplete: () => (dizzy.visible = false) });
+          eyes.forEach((e) => gsap.to(e.scale, { y: 1, duration: 0.2, delay: 0.3 }));
+          gsap.to([phys.x, phys.z], {
+            phi: 0, duration, ease: "back.out(1.4)",
+            onComplete: () => {
+              phys.x.phi = phys.z.phi = 0;
+              phys.fallen = phys.frozen = false;
+              squash.vel += 1.5;
+              resolve();
+            },
+          });
+        });
+      }
+
+      // ---------- Squash & Stretch (Feder) ----------
+      const squash = { v: 0, vel: 0 };
+      function stepSquash(dt) {
+        squash.vel += (-160 * squash.v - 9 * squash.vel) * dt;
+        squash.v += squash.vel * dt;
+        const s = THREE.MathUtils.clamp(squash.v * 0.06, -0.18, 0.18);
+        upper.scale.set(1 + s, 1 - s, 1 + s * 0.6);
+        for (const a of arms) {
+          a.vel += (-60 * a.swing - 5 * a.vel) * dt;
+          a.vel -= phys.x.w * 4 * dt * 10;
+          a.swing += a.vel * dt;
+          a.pivot.rotation.z = a.s * 0.35 + THREE.MathUtils.clamp(a.swing * 0.15, -0.9, 0.9);
+        }
+      }
+
+      // ---------- Figur um die Kippkante drehen ----------
+      const mT = new THREE.Matrix4(), mR = new THREE.Matrix4(), mRx = new THREE.Matrix4();
+      function updateFigureMatrix() {
+        const { bx, bz } = geo();
+        const px = Math.sign(phys.x.phi) * bx, pz = Math.sign(phys.z.phi) * bz;
+        figure.matrix
+          .makeTranslation(px, 0, pz)
+          .multiply(mR.makeRotationZ(-phys.x.phi))
+          .multiply(mRx.makeRotationX(phys.z.phi))
+          .multiply(mT.makeTranslation(-px, 0, -pz));
+        figure.matrixWorldNeedsUpdate = true;
+      }
+
+      // ---------- Schwerpunkt-Kugel, Lot-Linie, Bodenpunkt ----------
+      const glowTex = (() => {
+        const c = document.createElement("canvas");
+        c.width = c.height = 128;
+        const g = c.getContext("2d");
+        const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+        grd.addColorStop(0, "rgba(255,230,120,1)");
+        grd.addColorStop(0.35, "rgba(255,210,63,0.55)");
+        grd.addColorStop(1, "rgba(255,210,63,0)");
+        g.fillStyle = grd;
+        g.fillRect(0, 0, 128, 128);
+        return new THREE.CanvasTexture(c);
+      })();
+      const comGroup = new THREE.Group();
+      scene.add(comGroup);
+      const comBall = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14, 20, 14),
+        new THREE.MeshBasicMaterial({ color: COLORS.gold, depthTest: false })
+      );
+      comBall.renderOrder = 10;
+      const comGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: glowTex, depthTest: false, blending: THREE.AdditiveBlending, transparent: true,
+      }));
+      comGlow.scale.setScalar(1.1);
+      comGlow.renderOrder = 9;
+      comGroup.add(comGlow, comBall);
+
+      const dotMat = new THREE.MeshBasicMaterial({ color: COLORS.ok, depthTest: false, transparent: true });
+      const dotGeo = new THREE.SphereGeometry(0.045, 8, 6);
+      const dots = Array.from({ length: 16 }, () => {
+        const d = new THREE.Mesh(dotGeo, dotMat);
+        d.renderOrder = 8;
+        scene.add(d);
+        return d;
+      });
+      const groundRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.1, 0.17, 24),
+        new THREE.MeshBasicMaterial({ color: COLORS.ok, depthTest: false })
+      );
+      groundRing.rotation.x = -Math.PI / 2;
+      groundRing.renderOrder = 8;
+      scene.add(groundRing);
+
+      const comWorld = new THREE.Vector3();
+      const colOk = new THREE.Color(COLORS.ok), colOut = new THREE.Color(COLORS.out);
+      let inside = true;
+
+      function updateIndicator(time) {
+        const { bx, bz, h } = geo();
+        comWorld.set(0, h, 0).applyMatrix4(figure.matrix);
+        comGroup.position.copy(comWorld);
+        const pulse = 1 + Math.sin(time * 5) * 0.08;
+        comBall.scale.setScalar(pulse * (explainFocus ? 1.4 : 1));
+        comGlow.scale.setScalar(0.9 * pulse * (explainFocus ? 1.25 : 1));
+        // Liegt die Projektion in der Basis-Fläche? (Basis bleibt am Boden)
+        inside = Math.abs(comWorld.x) <= bx + 1e-4 && Math.abs(comWorld.z) <= bz + 1e-4;
+        const col = inside ? colOk : colOut;
+        dotMat.color.copy(col);
+        groundRing.material.color.copy(col);
+        baseMat.color.lerp(col, 0.35);
+        dots.forEach((d, i) => {
+          const f = (i + 0.5) / dots.length;
+          d.position.set(comWorld.x, comWorld.y * (1 - f), comWorld.z);
+        });
+        groundRing.position.set(comWorld.x, 0.02, comWorld.z);
+        basePlate.scale.set(bx * 2, bz * 2, 1);
+      }
+
+      // ---------- Kamera passt sich an Hoch- und Querformat an ----------
+      let camDist = 10;
+      function resize() {
+        const w = window.innerWidth, h = window.innerHeight;
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h;
+        camDist = THREE.MathUtils.clamp(Math.max(9.2, 8.2 / camera.aspect), 9.2, 17);
+        camera.updateProjectionMatrix();
+      }
+      window.addEventListener("resize", resize);
+      resize();
+
+      // ---------- Ton & Sprache ----------
+      let soundOn = true;
+      let actx = null;
+      const ensureAudio = () => {
+        if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+        if (actx.state === "suspended") actx.resume();
+      };
+      function tone(type, f0, f1, dur, vol = 0.25) {
+        if (!soundOn || !actx) return;
+        const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+        o.type = type;
+        o.frequency.setValueAtTime(f0, t);
+        o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+        g.gain.setValueAtTime(vol, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        o.connect(g).connect(actx.destination);
+        o.start(t);
+        o.stop(t + dur);
+      }
+      const sfx = {
+        boing: (s) => tone("sine", 220, 520 + 120 * s, 0.25, 0.22),
+        plopp: () => { tone("sine", 180, 50, 0.35, 0.4); tone("triangle", 900, 300, 0.12, 0.08); },
+        ding: () => { tone("triangle", 880, 880, 0.35, 0.18); setTimeout(() => tone("triangle", 1320, 1320, 0.4, 0.14), 90); },
+      };
+
+      let voice = null;
+      const pickVoice = () => {
+        const vs = speechSynthesis.getVoices();
+        voice = vs.find((v) => v.lang === "de-DE" && /Anna|Petra|Helena|Google/.test(v.name)) || vs.find((v) => v.lang.startsWith("de")) || null;
+      };
+      if ("speechSynthesis" in window) {
+        pickVoice();
+        speechSynthesis.onvoiceschanged = pickVoice;
+      }
+      function speak(text) {
+        if (!soundOn || !("speechSynthesis" in window)) return;
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text.replaceAll("=", "ist"));
+        u.lang = "de-DE";
+        if (voice) u.voice = voice;
+        u.rate = 0.95;
+        u.pitch = 1.1;
+        speechSynthesis.speak(u);
+      }
+
+      const soundBtn = document.getElementById("sound");
+      soundBtn.addEventListener("click", () => {
+        soundOn = !soundOn;
+        soundBtn.textContent = soundOn ? "🔊" : "🔇";
+        if (!soundOn && "speechSynthesis" in window) speechSynthesis.cancel();
+      });
+
+      // ---------- UI-Bausteine ----------
+      const $ = (s) => document.querySelector(s);
+      const sayEl = $("#say"), actionBtn = $("#action"), card = $("#card");
+      const hand = $("#hand"), tagCom = $("#tagCom"), tagBase = $("#tagBase");
+
+      function say(text, { voice: v = true } = {}) {
+        gsap.killTweensOf(sayEl);
+        gsap.to(sayEl, {
+          y: -10, opacity: 0, duration: 0.15,
+          onComplete: () => {
+            sayEl.textContent = text;
+            gsap.fromTo(sayEl, { y: 16, opacity: 0, scale: 0.96 }, { y: 0, opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" });
+          },
+        });
+        if (v) speak(text);
+      }
+
+      function showAction(label, onClick) {
+        actionBtn.textContent = label;
+        actionBtn.onclick = () => { hideAction(); onClick(); };
+        actionBtn.style.pointerEvents = "auto";
+        gsap.fromTo(actionBtn, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(2)", delay: 0.3 });
+      }
+      function hideAction() {
+        actionBtn.style.pointerEvents = "none";
+        actionBtn.onclick = null;
+        gsap.to(actionBtn, { opacity: 0, y: 20, duration: 0.2 });
+      }
+
+      // Karte mit max. einem Satz (h1 = Überschrift, p = Satz)
+      function showCard({ title = "", text = "", button, seal = false, onClick }) {
+        card.querySelector("h1").textContent = title;
+        card.querySelector("h1").classList.toggle("long", title.length > 30);
+        card.querySelector("p").textContent = text;
+        card.querySelector(".seal").hidden = !seal;
+        const btn = card.querySelector("button");
+        btn.textContent = button;
+        btn.onclick = () => {
+          ensureAudio();
+          card.style.pointerEvents = "none";
+          gsap.to(card, { opacity: 0, duration: 0.3, onComplete: onClick });
+        };
+        card.style.pointerEvents = "auto";
+        gsap.fromTo(card, { opacity: 0 }, { opacity: 1, duration: 0.35 });
+        gsap.fromTo(card.querySelector(".inner"), { y: 40, scale: 0.94 }, { y: 0, scale: 1, duration: 0.6, ease: "back.out(1.8)" });
+        speak([title, text].filter(Boolean).join(" "));
+      }
+
+      // Großer Touch-Slider (Wert 0–1)
+      function makeSlider(el, vertical, onChange) {
+        const thumb = el.querySelector(".thumb"), fill = el.querySelector(".fill");
+        const api = {
+          value: 0,
+          set(v) {
+            api.value = THREE.MathUtils.clamp(v, 0, 1);
+            if (vertical) {
+              const y = (1 - api.value) * 100;
+              thumb.style.top = y + "%";
+              Object.assign(fill.style, { left: "20px", width: "24px", top: y + "%", bottom: "0" });
+            } else {
+              thumb.style.left = api.value * 100 + "%";
+              Object.assign(fill.style, { top: "20px", height: "24px", left: "0", width: api.value * 100 + "%" });
+            }
+          },
+        };
+        const fromEvent = (e) => {
+          const r = el.getBoundingClientRect();
+          return vertical ? 1 - (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
+        };
+        el.addEventListener("pointerdown", (e) => {
+          try { el.setPointerCapture(e.pointerId); } catch {}
+          api.set(fromEvent(e));
+          onChange(api.value);
+          gsap.to(thumb, { scale: 1.15, duration: 0.15 });
+        });
+        el.addEventListener("pointermove", (e) => {
+          if (!(e.buttons || e.pointerType === "touch") || !el.hasPointerCapture(e.pointerId)) return;
+          api.set(fromEvent(e));
+          onChange(api.value);
+        });
+        const up = () => gsap.to(thumb, { scale: 1, duration: 0.3, ease: "back.out(3)" });
+        el.addEventListener("pointerup", up);
+        el.addEventListener("pointercancel", up);
+        return api;
+      }
+      // Hüfte: Slider unten = tief. Der Wert t ist 0 = tief, 1 = hoch.
+      const sWidth = makeSlider($("#sWidth"), false, (v) => (pose.wTarget = THREE.MathUtils.lerp(MIN_W, MAX_W, v)));
+      const sHip = makeSlider($("#sHip"), true, (v) => (pose.tTarget = v));
+      const sliderEls = [$("#sWidth"), $("#sHip")];
+      function showSliders(on) {
+        sliderEls.forEach((el) => (el.style.pointerEvents = on ? "auto" : "none"));
+        gsap.to(sliderEls, { opacity: on ? 1 : 0, duration: 0.4, stagger: 0.08 });
+      }
+      function setPose(w, t, instant = false) {
+        pose.wTarget = w;
+        pose.tTarget = t;
+        sWidth.set((w - MIN_W) / (MAX_W - MIN_W));
+        sHip.set(t);
+        if (instant) { pose.w = w; pose.t = t; }
+      }
+
+      const starEls = [...document.querySelectorAll("#stars span")];
+      function setStars(n, animateIndex = -1) {
+        starEls.forEach((s, i) => s.classList.toggle("on", i < n));
+        if (animateIndex >= 0) {
+          gsap.fromTo(starEls[animateIndex], { scale: 0.3, rotate: -90 }, { scale: 1, rotate: 0, duration: 0.6, ease: "back.out(3)" });
+        }
+      }
+
+      // 3D-Punkt → Bildschirm
+      const toScreen = (v) => {
+        const p = v.clone().project(camera);
+        return { x: (p.x * 0.5 + 0.5) * innerWidth, y: (-p.y * 0.5 + 0.5) * innerHeight };
+      };
+
+      // ---------- Eingabe: Tippen oder Wischen = Schubsen ----------
+      let allowPush = false;
+      let lastPush = null;
+      let pushBoost = 1; // Level 1: jeder Stern-Schubs wird etwas stärker
+      let down = null;
+
+      canvas.addEventListener("pointerdown", (e) => {
+        ensureAudio();
+        down = { x: e.clientX, y: e.clientY, t: performance.now() };
+      });
+      canvas.addEventListener("pointerup", (e) => {
+        if (!down) return;
+        const dx = e.clientX - down.x, dy = e.clientY - down.y;
+        const dt = Math.max(16, performance.now() - down.t);
+        const dist = Math.hypot(dx, dy);
+        down = null;
+        if (!allowPush || phys.fallen || phys.frozen) return;
+        let p;
+        if (dist > 30) {
+          // Wischen: Richtung = Wischrichtung, Stärke = Tempo
+          const speed = dist / dt; // px pro ms
+          p = { dx, dz: dy, strength: Math.max(pushBoost, THREE.MathUtils.clamp(0.9 + speed * 0.5, 1, 1.8)) };
+        } else {
+          // Tippen: von der getippten Seite weg schubsen
+          const center = toScreen(comWorld);
+          const side = e.clientX < center.x ? 1 : -1;
+          p = { dx: side, dz: 0, strength: pushBoost };
+        }
+        ripple(e.clientX, e.clientY);
+        doPush(p);
+      });
+
+      function doPush(p) {
+        lastPush = p;
+        push(p.dx, p.dz, p.strength);
+        phys.pending = { strength: p.strength };
+        hideHand();
+        onPushStart?.();
+      }
+
+      function ripple(x, y) {
+        const r = document.createElement("div");
+        r.className = "ripple";
+        r.style.left = x + "px";
+        r.style.top = y + "px";
+        document.body.appendChild(r);
+        gsap.fromTo(r, { scale: 0.3, opacity: 1 }, { scale: 1.6, opacity: 0, duration: 0.5, ease: "power2.out", onComplete: () => r.remove() });
+      }
+
+      // Hand-Hinweis „hier antippen“ – ohne Maus nach 3 Sek. sichtbar
+      let handTween = null;
+      function showHand() {
+        hand.dataset.on = "1";
+        gsap.to(hand, { opacity: 1, duration: 0.3 });
+        handTween = gsap.to(hand, { y: -18, duration: 0.5, yoyo: true, repeat: -1, ease: "sine.inOut" });
+      }
+      function hideHand() {
+        if (hand.dataset.on !== "1") return;
+        hand.dataset.on = "";
+        handTween?.kill();
+        gsap.to(hand, { opacity: 0, duration: 0.2 });
+      }
+
+      // ---------- Ergebnis eines Schubses erkennen ----------
+      let onPushStart = null, onFall = null, onStand = null;
+      function checkPending() {
+        if (!phys.pending) return;
+        if (phys.fallen) {
+          phys.pending = null;
+          setTimeout(() => onFall?.(), 700);
+        } else if (phys.x.phi === 0 && phys.z.phi === 0 && phys.x.w === 0 && phys.z.w === 0) {
+          const p = phys.pending;
+          phys.pending = null;
+          onStand?.(p);
+        }
+      }
+
+      // ---------- Erklär-Modus: Zeitlupe + Beschriftung ----------
+      let explainFocus = false;
+      function slowMo(on) {
+        gsap.to(phys, { timeScale: on ? 0.4 : 1, duration: on ? 0.2 : 0.6 });
+      }
+      function showTags(on) {
+        explainFocus = on;
+        gsap.to([tagCom, tagBase], { opacity: on ? 1 : 0, duration: 0.3 });
+      }
+
+      // ---------- Die Journey (ein Schritt pro Bildschirm) ----------
+      const flow = {
+        start() {
+          setPose(0.34, 1, true);
+          showCard({
+            seal: true, title: "Der Fels", text: "Kannst du ihn umschubsen?", button: "Los!",
+            onClick: flow.try1,
+          });
+        },
+
+        // 1) Ausprobieren: hoch und schmal → er fällt
+        try1() {
+          say("Tipp ihn an!");
+          allowPush = true;
+          setTimeout(showHand, 900);
+          onPushStart = null;
+          onStand = () => say("Fester! Wisch über ihn!");
+          onFall = () => {
+            allowPush = false;
+            showCard({ title: "Warum ist er umgefallen?", button: "Zeig's mir", onClick: flow.explain1 });
+          };
+        },
+
+        // 2) Erklären in Zeitlupe
+        async explain1() {
+          await standUp();
+          say("Schau auf die Kugel!");
+          showTags(true);
+          await wait(1200);
+          slowMo(true);
+          onFall = async () => {
+            slowMo(false);
+            say("Die Kugel ist aus der Fläche gerutscht!");
+            await wait(900);
+            showAction("Weiter", async () => {
+              showTags(false);
+              await standUp();
+              flow.fix();
+            });
+          };
+          onStand = () => { slowMo(false); flow.fix(); };
+          doPush(lastPush || { dx: 1, dz: 0, strength: 1 });
+        },
+
+        // 3) Selbst lösen: tief und breit machen, 3 Schubse überstehen
+        fix() {
+          let stars = 0;
+          setStars(0);
+          pushBoost = 1;
+          gsap.to("#stars", { opacity: 1, duration: 0.4 });
+          showSliders(true);
+          say("Mach ihn tief und breit!");
+          allowPush = true;
+          onPushStart = null;
+          onStand = (p) => {
+            if (p.strength < 1) return;
+            stars++;
+            setStars(stars, stars - 1);
+            pushBoost = 1 + stars * 0.4;
+            sfx.ding();
+            if (stars < 3) say(["Er bleibt stehen!", "Stark! Jetzt schubst du fester!"][stars - 1]);
+            else {
+              allowPush = false;
+              setTimeout(() => {
+                showSliders(false);
+                showCard({ title: "Warum bleibt er jetzt stehen?", button: "Zeig's mir", onClick: flow.explain2 });
+              }, 600);
+            }
+          };
+          onFall = async () => {
+            // Gezielter Tipp: was fehlt noch?
+            const wide = pose.w > 1.1, low = pose.t < 0.4;
+            say(wide && !low ? "Hoppla! Noch tiefer!" : low && !wide ? "Hoppla! Noch breiter!" : "Hoppla! Tiefer und breiter!");
+            allowPush = false;
+            await wait(800);
+            await standUp();
+            allowPush = true;
+          };
+        },
+
+        // 4) Zweite Erklärung: gleicher Schubs, Kugel bleibt drin
+        async explain2() {
+          gsap.to("#stars", { opacity: 0, duration: 0.3 });
+          say("Schau wieder auf die Kugel!");
+          showTags(true);
+          await wait(1200);
+          slowMo(true);
+          const done = async () => {
+            slowMo(false);
+            say("Die Kugel bleibt über der Fläche!");
+            await wait(900);
+            showAction("Weiter", () => { showTags(false); flow.end(); });
+          };
+          onStand = done;
+          onFall = async () => { await standUp(); done(); };
+          // Kräftiger Schubs, aber nur der Anfang in Zeitlupe – sonst dauert das Auspendeln zu lange
+          doPush({ dx: lastPush?.dx || 1, dz: 0, strength: 1.4 });
+          setTimeout(() => slowMo(false), 3500);
+        },
+
+        // 5) Merksatz + Mini-Aufgabe für die Matte
+        end() {
+          showCard({
+            seal: true,
+            title: "Tief und breit = stark.\nHoch und schmal = du fällst um.",
+            text: "Zeig deinem Trainer deine stärkste Base!",
+            button: "Nochmal spielen",
+            onClick: flow.free,
+          });
+        },
+
+        // Freies Spielen
+        free() {
+          pushBoost = 1;
+          showSliders(true);
+          say("Probier alles aus!");
+          allowPush = true;
+          onPushStart = null;
+          onStand = null;
+          onFall = async () => {
+            allowPush = false;
+            await wait(900);
+            await standUp();
+            allowPush = true;
+          };
+        },
+      };
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      // ---------- Animationsschleife ----------
+      const clock = new THREE.Clock();
+      function tick() {
+        const dt = Math.min(clock.getDelta(), 1 / 30);
+        const time = clock.elapsedTime;
+
+        // Haltung weich zum Slider-Wert ziehen
+        const k = 1 - Math.exp(-dt * 12);
+        pose.w += (pose.wTarget - pose.w) * k;
+        pose.t += (pose.tTarget - pose.t) * k;
+        applyPose();
+
+        stepPhysics(dt * phys.timeScale);
+        stepSquash(dt * Math.max(phys.timeScale, 0.35));
+        if (dizzy.visible) dizzy.rotation.y += dt * 4;
+        updateFigureMatrix();
+        updateIndicator(time);
+        checkPending();
+
+        // Kamera folgt sanft, wenn die Figur liegt
+        const targetX = phys.fallen ? comWorld.x * 0.5 : 0;
+        camLook.x += (targetX - camLook.x) * (1 - Math.exp(-dt * 2));
+        camera.position.set(camLook.x, 0.42 * camDist, camDist);
+        camera.lookAt(camLook);
+
+        // DOM-Helfer an 3D-Punkte heften
+        const c = toScreen(comWorld);
+        hand.style.left = c.x - 230 + "px";
+        hand.style.top = c.y - 20 + "px";
+        tagCom.style.left = c.x + 70 + "px";
+        tagCom.style.top = c.y - 30 + "px";
+        const b = toScreen(tmpA.set(geo().bx + 0.2, 0, geo().bz + 0.2));
+        tagBase.style.left = b.x + 40 + "px";
+        tagBase.style.top = b.y + 10 + "px";
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(tick);
+      }
+
+      setPose(0.34, 1, true);
+      sWidth.set(0.03);
+      sHip.set(1);
+      tick();
+      flow.start();
+
+      // Zum Testen in der Konsole
+      window.fels = { phys, pose, push, flow, geo };
+    </script>
+  </body>
+</html>
