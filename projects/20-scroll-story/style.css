@@ -173,6 +173,39 @@ body:not(.is-ready) .scroll-cue {
   transform: translateX(4px);
 }
 
+/* --- Easter Egg --- */
+.egg {
+  position: fixed;
+  left: var(--pad);
+  right: var(--pad);
+  bottom: clamp(56px, 12vh, 140px);
+  z-index: 2;
+}
+
+.egg .title {
+  font-size: clamp(44px, 7.4vw, 130px);
+}
+
+.egg__close {
+  margin-top: 18px;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Während das Egg läuft, wischt der Outro-Text nach unten weg.
+   clip-path statt opacity: die gehört schon der Scroll-Timeline. */
+.copy--cta {
+  clip-path: inset(-20% -10% -20% -10%);
+  transition: clip-path 0.7s cubic-bezier(0.7, 0, 0.2, 1);
+}
+
+body.egg-on .copy--cta {
+  clip-path: inset(120% -10% -20% -10%);
+  pointer-events: none;
+}
+
 /* --- Header --- */
 .brand {
   position: fixed;

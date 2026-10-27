@@ -49,6 +49,7 @@ export const U = {
   pointer: uniform(new THREE.Vector3(0, 0, -100)), // Maus auf der Siegel-Ebene
   pointerAmt: uniform(0),
   stamp: uniform(0),
+  egg: uniform(0), // Easter Egg: 0 = Siegel, 1 = „hey.“
 };
 
 // Wie weit der Zeitversatz zwischen den Splittern reicht (0 = alle gleichzeitig)
@@ -58,23 +59,16 @@ const SPREAD = 0.7;
 // und läuft weich an und aus. So zerfällt die Kugel nicht auf einen Schlag.
 const ease = (p, delay) => smoothstep(0, 1, p.mul(1 + SPREAD).sub(delay.mul(SPREAD)));
 
-// Siegel aus dem echten SVG abtasten: jedes deckende Pixel ist ein möglicher Platz
-async function sampleSeal(count, size) {
-  const img = new Image();
-  img.src = `${import.meta.env.BASE_URL}siegel.svg`;
-  await img.decode();
-
-  const S = 400;
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = S;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(img, 0, 0, S, S);
-  const data = ctx.getImageData(0, 0, S, S).data;
+// Eine Form abtasten: Canvas zeichnen, jedes deckende Pixel ist ein möglicher
+// Platz für einen Splitter. `size` = Breite in Welt-Einheiten, Mitte = Siegel.
+function sampleCanvas(canvas, count, size) {
+  const { width: W, height: H } = canvas;
+  const data = canvas.getContext("2d").getImageData(0, 0, W, H).data;
 
   const pixels = [];
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      if (data[(y * S + x) * 4 + 3] > 140) pixels.push(x, y);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (data[(y * W + x) * 4 + 3] > 140) pixels.push(x, y);
     }
   }
 
@@ -82,11 +76,41 @@ async function sampleSeal(count, size) {
   const n = pixels.length / 2;
   for (let i = 0; i < count; i++) {
     const j = Math.floor(Math.random() * n) * 2;
-    out[i * 3 + 0] = SEAL_CENTER.x + (pixels[j] / S - 0.5) * size;
-    out[i * 3 + 1] = SEAL_CENTER.y - (pixels[j + 1] / S - 0.5) * size;
+    out[i * 3 + 0] = SEAL_CENTER.x + (pixels[j] / W - 0.5) * size;
+    out[i * 3 + 1] = SEAL_CENTER.y - ((pixels[j + 1] - H / 2) / W) * size;
     out[i * 3 + 2] = SEAL_CENTER.z + (Math.random() - 0.5) * 0.22;
   }
   return out;
+}
+
+function makeCanvas(w, h) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  return [canvas, canvas.getContext("2d", { willReadFrequently: true })];
+}
+
+// Siegel aus dem echten SVG
+async function sampleSeal(count, size) {
+  const img = new Image();
+  img.src = `${import.meta.env.BASE_URL}siegel.svg`;
+  await img.decode();
+  const [canvas, ctx] = makeCanvas(400, 400);
+  ctx.drawImage(img, 0, 0, 400, 400);
+  return sampleCanvas(canvas, count, size);
+}
+
+// Easter Egg: dieselben Splitter schreiben „hey.“ in der Titelschrift
+async function sampleHey(count, size) {
+  const font = 'italic 300px "Instrument Serif"';
+  await document.fonts.load(font);
+  const [canvas, ctx] = makeCanvas(800, 400);
+  ctx.font = font;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#fff";
+  ctx.fillText("hey.", 400, 190);
+  return sampleCanvas(canvas, count, size);
 }
 
 export async function createWorld(scene, path, { count, reduced }) {
@@ -96,6 +120,7 @@ export async function createWorld(scene, path, { count, reduced }) {
   const rot = new Float32Array(count * 3);
   const rnd = new Float32Array(count * 4);
   const seal = await sampleSeal(count, 6.6);
+  const hey = await sampleHey(count, 9);
 
   const RADIUS = 1.3;
   const golden = Math.PI * (3 - Math.sqrt(5));
@@ -148,8 +173,8 @@ export async function createWorld(scene, path, { count, reduced }) {
 
   // WebGPU erlaubt nur 8 Vertex-Buffer pro Draw. Sechs eigene Attribute + position,
   // normal, instanceMatrix wären zu viele → alles in EINEN verschachtelten Buffer:
-  // pro Instanz 19 Floats hintereinander [sphere3 scatter3 seal3 arc3 rot3 rnd4]
-  const STRIDE = 19;
+  // pro Instanz 22 Floats hintereinander [sphere3 scatter3 seal3 arc3 rot3 rnd4 hey3]
+  const STRIDE = 22;
   const packed = new Float32Array(count * STRIDE);
   const parts = [
     [sphere, 3],
@@ -158,6 +183,7 @@ export async function createWorld(scene, path, { count, reduced }) {
     [arc, 3],
     [rot, 3],
     [rnd, 4],
+    [hey, 3],
   ];
   for (let i = 0; i < count; i++) {
     let o = i * STRIDE;
@@ -173,6 +199,7 @@ export async function createWorld(scene, path, { count, reduced }) {
   const aArc = attr("vec3", 9);
   const aRot = attr("vec3", 12);
   const aRnd = attr("vec4", 15);
+  const aHey = attr("vec3", 19);
 
   // --- Splitter-Material: Position, Drehung, Farbe – alles TSL ---
   const material = new THREE.MeshStandardNodeMaterial({
@@ -201,11 +228,14 @@ export async function createWorld(scene, path, { count, reduced }) {
 
   // Maus auf dem Siegel: Splitter im Umkreis weichen zur Kamera hin aus
   const toPointer = aSeal.xy.sub(U.pointer.xy);
-  const press = smoothstep(1.5, 0, toPointer.length()).mul(U.pointerAmt).mul(e2);
+  const e3 = ease(U.egg, aRnd.x);
+  const press = smoothstep(1.5, 0, toPointer.length()).mul(U.pointerAmt).mul(e2).mul(e3.oneMinus());
   const push = vec3(toPointer.normalize().mul(press.mul(0.35)), press.mul(0.9));
 
   const p1 = mix(spun, aScatter, e1).add(aArc.mul(sin(e1.mul(PI))));
-  const offset = mix(p1, aSeal, e2)
+  // Easter Egg: aus dem Siegel wird „hey.“ – mit eigenem Bogen, Splitter für Splitter
+  const sealOrHey = mix(aSeal, aHey, e3).add(aArc.mul(sin(e3.mul(PI)).mul(0.8)));
+  const offset = mix(p1, sealOrHey, e2)
     .add(aArc.mul(sin(e2.mul(PI)).mul(0.35))) // halber Bogen: ruhigeres Zusammensetzen
     .add(aArc.mul(U.stamp).mul(e2)) // Klick: Stoß nach außen, federt zurück
     .add(push)
@@ -224,7 +254,8 @@ export async function createWorld(scene, path, { count, reduced }) {
   const base = mix(U.colorA, U.colorB, aRnd.x);
   material.colorNode = base;
   // Schimmer: ein schmales Lichtband wandert diagonal über das fertige Siegel
-  const diag = aSeal.x.sub(SEAL_CENTER.x).add(aSeal.y.sub(SEAL_CENTER.y).mul(0.6));
+  const home = mix(aSeal, aHey, e3); // der Schimmer läuft auch über „hey.“
+  const diag = home.x.sub(SEAL_CENTER.x).add(home.y.sub(SEAL_CENTER.y).mul(0.6));
   const band = smoothstep(0.7, 0, diag.sub(U.sweep).abs()).mul(e2);
   const sparkle = pow(aRnd.y, 6).mul(3.2).add(0.06);
   material.emissiveNode = base.mul(U.glow).mul(sparkle).add(vec3(1, 0.92, 0.86).mul(band.mul(1.6).add(press.mul(1.2))));
