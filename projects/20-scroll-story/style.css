@@ -65,6 +65,10 @@ body:not(.is-ready) .scroll-cue {
 
 .chapter {
   position: relative;
+  /* Langes Drücken (Kugel/Siegel halten) soll am Handy kein Kontextmenü öffnen */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .chapter[data-chapter="1"] { height: 130vh; }
 .chapter[data-chapter="2"] { height: 150vh; }

@@ -75,14 +75,23 @@ const hit = new THREE.Vector3();
 let overSeal = false;
 const introSphere = new THREE.Sphere(new THREE.Vector3(), 1.45); // Kugel im Intro
 
-addEventListener("pointermove", (e) => {
-  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-});
+const setNdc = (e) => ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+addEventListener("pointermove", setNdc);
+// Am Handy gibt es kein Hovern: beim Antippen sofort messen, wo der Finger ist –
+// in der Capture-Phase, also bevor die Easter Eggs den pointerdown sehen
+addEventListener(
+  "pointerdown",
+  (e) => {
+    setNdc(e);
+    updatePointer(0);
+  },
+  { capture: true }
+);
 
 addEventListener("click", (e) => {
   if (e.target.closest("a")) return;
   if (eggs.heyActive) return eggs.closeHey();
-  if (overSeal && !eggs.dragged) eggs.stamp();
+  if (overSeal && !eggs.suppressClick) eggs.stamp();
 });
 
 function updatePointer(dt) {

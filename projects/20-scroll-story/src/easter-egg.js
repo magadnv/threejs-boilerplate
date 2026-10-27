@@ -11,7 +11,8 @@
 //                 Sternschnuppe zieht durchs Bild
 //   5 · Kuzushi   das Siegel schnell zur Seite ziehen → es kippt aus dem
 //                 Gleichgewicht und federt zurück (U.tilt)
-//   6 · Konami    ↑↑↓↓←→←→ → Paper Edition: Tinte auf Papier, Siegel rot auf weiß
+//   6 · Papier    ↑↑↓↓←→←→ oder das Siegel 1,5 s halten (geht auch am Handy)
+//                 → Paper Edition: Tinte auf Papier, Siegel rot auf weiß
 //
 // Jeder Fund zählt mit: „Easter egg 2 / 6“ – wer zwei hat, sucht weiter.
 
@@ -108,22 +109,25 @@ export function createEasterEggs({ reduced, scene, camera, post }) {
     gsap.to(el, { autoAlpha: 0, duration: 0.4, onComplete: () => (el.hidden = true) });
   }
 
-  // ---------------- 2 · Halten → Supernova ----------------
-  const CHARGE_TIME = 2.5;
-  let holding = false;
+  // ---------------- 2 · Halten → Supernova (und 6 · Siegel halten → Papier) ----------------
+  // Halten funktioniert für zwei Ziele: die Kugel im Intro und das Siegel am Ende.
+  // Beides lädt dieselbe Ladung U.charge auf – die Splitter glühen dabei auf.
+  const HOLD_TIME = { sphere: 2.5, seal: 1.5 };
+  let holdTarget = null; // null | "sphere" | "seal"
   let overSphere = false;
   let cooldown = 0;
+  let held = false; // ein fertiges Halten soll beim Loslassen nicht auch noch stempeln
 
   addEventListener("pointerdown", (e) => {
-    if (overSphere && !e.target.closest("a")) holding = true;
+    held = false;
+    if (e.target.closest("a") || cooldown > 0) return;
+    if (overSphere) holdTarget = "sphere";
+    else if (lastOverSeal && !heyActive) holdTarget = "seal";
   });
-  addEventListener("pointerup", () => (holding = false));
-  addEventListener("pointercancel", () => (holding = false));
+  addEventListener("pointerup", () => (holdTarget = null));
+  addEventListener("pointercancel", () => (holdTarget = null));
 
   function supernova() {
-    holding = false;
-    cooldown = 3;
-    U.charge.value = 0;
     if (!reduced) {
       gsap.fromTo(U.burst, { value: 1 }, { value: 0, duration: 2.6, ease: "elastic.out(1, 0.25)", overwrite: true });
     }
@@ -281,9 +285,22 @@ export function createEasterEggs({ reduced, scene, camera, post }) {
     updateStillness(dt);
     cooldown = Math.max(0, cooldown - dt);
     overSphere = sphereHit && cooldown === 0;
-    if (holding && overSphere) {
-      U.charge.value = Math.min(1, U.charge.value + dt / CHARGE_TIME);
-      if (U.charge.value >= 1) supernova();
+
+    // Wer zieht (Kuzushi), hält nicht
+    if (dragged) holdTarget = null;
+    const stillOver = holdTarget === "sphere" ? overSphere : holdTarget === "seal" && overSeal;
+
+    if (stillOver) {
+      U.charge.value = Math.min(1, U.charge.value + dt / HOLD_TIME[holdTarget]);
+      if (U.charge.value >= 1) {
+        const target = holdTarget;
+        holdTarget = null;
+        held = true;
+        cooldown = 3;
+        U.charge.value = 0;
+        if (target === "sphere") supernova();
+        else togglePaper();
+      }
     } else {
       // Loslassen: Ladung fließt weich ab – man darf es nochmal versuchen
       U.charge.value = THREE.MathUtils.damp(U.charge.value, 0, 5, dt);
@@ -295,9 +312,9 @@ export function createEasterEggs({ reduced, scene, camera, post }) {
     get heyActive() {
       return heyActive;
     },
-    // Nach einem Kuzushi-Zug soll der Klick nicht auch noch stempeln
-    get dragged() {
-      return dragged;
+    // Nach einem Kuzushi-Zug oder fertigem Halten soll der Klick nicht auch noch stempeln
+    get suppressClick() {
+      return dragged || held;
     },
     stamp,
     closeHey,
