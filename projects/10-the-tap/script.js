@@ -5,7 +5,9 @@
 //   1. Partikelmatte (THREE.Points + eigenes ShaderMaterial): atmet, trägt Schockwellen,
 //      kann sich zu einem Gürtel umformen (Morph auf zweite Position im Attribut aBelt).
 //   2. Hand (Low-Poly, extrudierte Silhouette) schlägt auf, GSAP steuert den Fall.
-//   3. Aufprall: Welle im Shader, Kamera-Shake, 0,2 s Slow-Motion, Mattensound (Web Audio).
+//   3. Aufprall als Tap-Tap-Tap: Matte saugt sich zur Hand, Handabdruck glüht nach,
+//      Partikel spritzen hoch, Wellen überlagern sich, Shake, Zoom-Ruck, 0,2 s Slow-Motion,
+//      Luftzug und Mattensound (Web Audio).
 //   4. Wörter per SplitText: Tap. → Learn. → Repeat. → Ego: 0, danach der Gürtel.
 //   5. Taste R: Record-Modus, 12 s automatisch im Hochformat 1080×1350.
 
@@ -43,6 +45,7 @@ const state = {
   speed: 1, // Simulationstempo (Slow-Motion beim Aufprall)
   shake: 0, // Kamera-Shake-Stärke
   camMix: 0, // 0 = Blick auf die Matte, 1 = frontal auf den Gürtel
+  kick: 0, // kurzer Zoom-Ruck beim Aufprall
 };
 
 let simTime = 0;
@@ -205,6 +208,10 @@ const uniforms = {
   uWaves: { value: Array.from({ length: 4 }, () => new THREE.Vector4(0, 0, -100, 0)) },
   // Handschatten: x, z, Nähe (0…1), sichtbar
   uHand: { value: new THREE.Vector4(0, 0, 0, 0) },
+  uSuck: { value: 0 }, // Matte hebt sich der fallenden Hand entgegen
+  // Handabdruck des letzten Taps: x, z, Startzeit, Stärke + Drehung der Hand
+  uImprint: { value: new THREE.Vector4(0, 0, -100, 0) },
+  uImprintYaw: { value: 0 },
   uMatColor: { value: COLORS.mat.clone() },
   uAccent: { value: COLORS.accent.clone() },
   uBeltColor: { value: COLORS.belts[0].clone() },
@@ -258,14 +265,20 @@ const NOISE = /* glsl */ `
   }
 `;
 
+const HAND_SCALE = 1.35;
+
 const material = new THREE.ShaderMaterial({
   uniforms,
+  defines: { HAND_SCALE: HAND_SCALE.toFixed(2) },
   transparent: true,
   depthWrite: false,
   vertexShader: /* glsl */ `
     uniform float uTime, uMorph, uSize, uScale, uHalf;
     uniform vec4 uWaves[4];
     uniform vec4 uHand;
+    uniform float uSuck;
+    uniform vec4 uImprint;
+    uniform float uImprintYaw;
     uniform vec3 uMatColor, uAccent, uBeltColor, uBarColor;
 
     attribute vec3 aBelt;
@@ -275,6 +288,32 @@ const material = new THREE.ShaderMaterial({
     varying float vAlpha;
 
     ${NOISE}
+
+    float sdCapsule(vec2 p, vec2 a, vec2 b, float r) {
+      vec2 pa = p - a, ba = b - a;
+      float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+      return length(pa - ba * h) - r;
+    }
+
+    float sdRoundBox(vec2 p, vec2 b, float r) {
+      vec2 q = abs(p) - b + r;
+      return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+    }
+
+    // Abstandsfeld der Hand, deckungsgleich mit der Mesh-Silhouette (siehe buildHand)
+    float handSDF(vec2 w) {
+      vec2 d = w - uImprint.xy;
+      float c = cos(uImprintYaw), s = sin(uImprintYaw);
+      vec2 l = vec2(d.x * c - d.y * s, d.x * s + d.y * c) / HAND_SCALE;
+      vec2 sp = vec2(l.x, 0.42 - l.y); // zurück in Shape-Koordinaten
+      float h = sdRoundBox(sp - vec2(0.0, 0.36), vec2(0.36), 0.14);
+      h = min(h, sdCapsule(sp, vec2(-0.26, 0.675), vec2(-0.26, 1.025), 0.075));
+      h = min(h, sdCapsule(sp, vec2(-0.085, 0.695), vec2(-0.085, 1.105), 0.075));
+      h = min(h, sdCapsule(sp, vec2(0.085, 0.685), vec2(0.085, 1.055), 0.075));
+      h = min(h, sdCapsule(sp, vec2(0.26, 0.635), vec2(0.26, 0.885), 0.075));
+      h = min(h, sdCapsule(sp, vec2(-0.357, 0.156), vec2(-0.573, 0.365), 0.08));
+      return h * HAND_SCALE;
+    }
 
     void main() {
       vec3 p = position;
@@ -302,8 +341,33 @@ const material = new THREE.ShaderMaterial({
         glow += ring * env + dent * 0.6;
       }
 
-      // Schatten der Hand: wird dunkler, je näher sie kommt
+      // Schatten der Hand: wird dunkler, je näher sie kommt; beim Fall saugt sie die Matte an
       float shadow = uHand.w * uHand.z * smoothstep(1.2, 0.0, distance(p.xz, uHand.xy));
+      p.y += uSuck * shadow * 0.32;
+
+      // Handabdruck: Form drückt sich ein, glüht nach; am Rand spritzen Partikel hoch
+      float imprint = 0.0, rim = 0.0, air = 0.0;
+      float iAge = uTime - uImprint.z;
+      if (uImprint.w > 0.0 && iAge >= 0.0 && iAge < 7.0) {
+        float sd = handSDF(position.xz);
+        float life = exp(-iAge * 0.45) * uImprint.w;
+        float inside = 1.0 - smoothstep(-0.03, 0.03, sd);
+        imprint = inside * life;
+        rim = exp(-pow(sd / 0.035, 2.0)) * life;
+        p.y -= inside * 0.22 * exp(-iAge * 1.3);
+
+        if (sd > 0.0 && sd < 0.5 && aRand < 0.5) {
+          float k = 1.0 - sd / 0.5;
+          float v = (1.6 + aRand * 6.0) * k * uImprint.w; // Startgeschwindigkeit nach oben
+          float land = 2.0 * v / 9.0; // Flugzeit bei g = 9
+          float t = min(iAge, land);
+          vec2 away = normalize(position.xz - uImprint.xy + 1e-4);
+          float back = 1.0 - smoothstep(land, land + 0.8, iAge); // nach der Landung zurückgleiten
+          p.y += v * t - 4.5 * t * t;
+          p.xz += away * t * (0.6 + aRand * 1.2) * back;
+          air = step(iAge, land) * k;
+        }
+      }
 
       // Morph zur Gürtelform, jedes Teilchen mit eigener Verzögerung und einem Bogen in die Luft
       float m = smoothstep(0.0, 1.0, clamp(uMorph * 1.6 - aRand * 0.6, 0.0, 1.0));
@@ -315,12 +379,15 @@ const material = new THREE.ShaderMaterial({
 
       vec4 mv = modelViewMatrix * vec4(pos, 1.0);
       gl_Position = projectionMatrix * mv;
-      gl_PointSize = uSize * (1.0 + glow * 0.6) * mix(1.0, 1.2, m) * uScale / -mv.z;
+      gl_PointSize = uSize * (1.0 + glow * 0.6 + air * 0.9 + imprint * 0.35) * mix(1.0, 1.2, m) * uScale / -mv.z;
 
       // Farbe Matte: Mattenweiß mit Noise-Schattierung, Fugen, Handschatten, Lila im Wellenkamm
       float shade = 0.55 + n * 0.22 + breath * 0.08;
       vec3 matCol = uMatColor * shade * (1.0 - aSeam * 0.6) * (1.0 - shadow * 0.8);
       matCol = mix(matCol, uAccent * 1.7, clamp(glow, 0.0, 1.0) * 0.85);
+      matCol = mix(matCol, uAccent * 2.8 + 0.12, clamp(imprint, 0.0, 1.0));
+      matCol += vec3(0.85, 0.8, 1.0) * rim * 0.9;
+      matCol = mix(matCol, vec3(1.0), air * 0.8);
 
       // Farbe Gürtel: Grundfarbe, Balken, Kontur und Steppnaht (heben sich auf hell wie dunkel ab)
       vec3 beltCol = mix(uBeltColor, uBarColor, aBar);
@@ -331,7 +398,7 @@ const material = new THREE.ShaderMaterial({
       // Matte läuft zu den Rändern weich aus
       vec2 q = abs(position.xz) / uHalf;
       float fade = 1.0 - smoothstep(0.7, 1.0, max(q.x, q.y));
-      vAlpha = mix(fade * min(0.85 + glow, 1.0), 1.0, m);
+      vAlpha = mix(fade * min(0.85 + glow + air + rim, 1.0), 1.0, m);
     }
   `,
   fragmentShader: /* glsl */ `
@@ -411,7 +478,7 @@ const hand = new THREE.Mesh(
     opacity: 0,
   })
 );
-hand.scale.setScalar(1.35);
+hand.scale.setScalar(HAND_SCALE);
 hand.renderOrder = 1;
 hand.visible = false;
 scene.add(hand);
@@ -471,6 +538,27 @@ function playThud(strength = 1) {
   slap.connect(lp).connect(slapGain).connect(master);
   slap.start(t);
   slap.stop(t + 0.25);
+}
+
+// Luftzug beim Fall: Rauschen, dessen Bandpass nach oben zieht
+function playWhoosh(duration) {
+  const { ctx, master } = audio;
+  if (!ctx || audio.muted) return;
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = audio.noise;
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 1.2;
+  bp.frequency.setValueAtTime(260, t);
+  bp.frequency.exponentialRampToValueAtTime(1400, t + duration);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.22, t + duration * 0.9);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + duration + 0.02);
+  src.connect(bp).connect(g).connect(master);
+  src.start(t);
+  src.stop(t + duration + 0.05);
 }
 
 function setMuted(muted) {
@@ -547,44 +635,80 @@ function addWave(x, z, strength) {
   waveSlot = (waveSlot + 1) % 4;
 }
 
-function impact(x, z) {
-  addWave(x, z, 1);
-  playThud();
+// Erster Schlag: volle Wucht. Nachschläge: nur Welle, Ton und ein kleiner Ruck.
+function impact(x, z, strength, primary) {
+  addWave(x, z, strength);
+  playThud(strength);
 
-  // Slow-Motion nur für die Simulation (Shader), nicht für die GSAP-Zeitleiste,
-  // damit der Record-Modus auf die Sekunde genau bleibt
-  gsap.killTweensOf(state, "speed");
-  gsap.timeline()
-    .set(state, { speed: 0.12 })
-    .to(state, { speed: 1, duration: 0.3, ease: "power2.inOut" }, 0.2);
+  if (primary) {
+    uniforms.uImprint.value.set(x, z, simTime, 1);
+    uniforms.uImprintYaw.value = hand.rotation.y;
+
+    // Slow-Motion nur für die Simulation (Shader), nicht für die GSAP-Zeitleiste,
+    // damit der Record-Modus auf die Sekunde genau bleibt
+    gsap.killTweensOf(state, "speed");
+    gsap.timeline()
+      .set(state, { speed: 0.12 })
+      .to(state, { speed: 1, duration: 0.3, ease: "power2.inOut" }, 0.2);
+  }
 
   if (!REDUCED_MOTION) {
-    gsap.killTweensOf(state, "shake");
-    gsap.fromTo(state, { shake: 1 }, { shake: 0, duration: 0.6, ease: "power4.out" });
+    gsap.killTweensOf(state, "shake,kick");
+    gsap.fromTo(state, { shake: strength }, { shake: 0, duration: 0.6, ease: "power4.out" });
+    gsap.fromTo(state, { kick: strength }, { kick: 0, duration: 0.7, ease: "power4.out" });
   }
 }
+
+// Ein echter Tap ist nie einer: ein schwerer Schlag, dann zwei schnelle, leichtere hinterher
+const TAPS = [
+  { at: 0.22, strength: 1 },
+  { at: 0.46, strength: 0.5 },
+  { at: 0.66, strength: 0.32 },
+];
 
 function slam(x, z, onImpact) {
   handTl?.kill();
   const mat = hand.material;
-  const fall = 0.24;
+  const yaw = (Math.random() - 0.5) * 0.7;
+  const fall = TAPS[0].at;
 
   hand.visible = true;
   hand.position.set(x + 0.3, 3.4, z + 1.3);
-  hand.rotation.set(0.55, 0, -0.18);
-  hand.scale.set(1.35, 1.35, 1.35);
+  hand.rotation.set(0.55, yaw, -0.18);
+  hand.scale.setScalar(HAND_SCALE);
+  playWhoosh(fall);
 
   handTl = gsap.timeline({ onComplete: () => (hand.visible = false) })
     .to(mat, { opacity: 1, duration: 0.1, ease: "none" }, 0)
-    // Schwerer Fall: beschleunigt bis zum letzten Moment
+    // Schwerer Fall: beschleunigt bis zum letzten Moment, die Matte hebt sich ihm entgegen
     .to(hand.position, { x, y: 0.02, z, duration: fall, ease: "power4.in" }, 0)
     .to(hand.rotation, { x: 0, z: 0, duration: fall, ease: "power3.in" }, 0)
-    .call(() => { impact(x, z); onImpact?.(); }, null, fall)
-    // Hand federt kurz ein und bleibt einen Atemzug liegen
-    .to(hand.scale, { y: 0.9, duration: 0.06, ease: "power2.out" }, fall)
-    .to(hand.scale, { y: 1.35, duration: 0.4, ease: "power4.out" }, fall + 0.06)
-    .to(hand.position, { y: 1.1, z: z + 0.5, duration: 0.8, ease: "power4.out" }, fall + 0.34)
-    .to(mat, { opacity: 0, duration: 0.5, ease: "power2.out" }, fall + 0.38);
+    .fromTo(uniforms.uSuck, { value: 0 }, { value: 1, duration: fall, ease: "power2.in" }, 0)
+    .set(uniforms.uSuck, { value: 0 }, fall);
+
+  TAPS.forEach(({ at, strength }, i) => {
+    handTl.call(() => {
+      impact(x, z, strength, i === 0);
+      if (i === 0) onImpact?.();
+    }, null, at);
+    // Hand federt bei jedem Schlag kurz ein
+    handTl
+      .to(hand.scale, { y: HAND_SCALE * (1 - 0.3 * strength), duration: 0.04, ease: "power2.out" }, at)
+      .to(hand.scale, { y: HAND_SCALE, duration: 0.12, ease: "power3.out" }, at + 0.04);
+    const next = TAPS[i + 1];
+    if (next) {
+      // kurz anheben und wieder runter, immer weniger hoch
+      const gap = next.at - at;
+      handTl
+        .to(hand.position, { y: 0.32 * next.strength + 0.1, duration: gap * 0.55, ease: "power2.out" }, at + 0.03)
+        .to(hand.position, { y: 0.02, duration: gap * 0.42, ease: "power4.in" }, at + 0.03 + gap * 0.55);
+    }
+  });
+
+  const last = TAPS[TAPS.length - 1].at;
+  handTl
+    .to(hand.position, { y: 1.1, z: z + 0.5, duration: 0.8, ease: "power4.out" }, last + 0.12)
+    .to(mat, { opacity: 0, duration: 0.5, ease: "power2.out" }, last + 0.16);
 }
 
 // ---------------------------------------------------------------------------
@@ -715,7 +839,9 @@ function resetScene() {
   uniforms.uWaves.value.forEach((w) => w.set(0, 0, -100, 0));
   uniforms.uBeltColor.value.copy(COLORS.belts[0]);
   uniforms.uBarColor.value.copy(COLORS.bars[0]);
-  Object.assign(state, { speed: 1, shake: 0, camMix: 0 });
+  Object.assign(state, { speed: 1, shake: 0, camMix: 0, kick: 0 });
+  uniforms.uImprint.value.set(0, 0, -100, 0);
+  uniforms.uSuck.value = 0;
   gsap.set([taglineEl, creditEl], { autoAlpha: 0, y: 0 });
   hand.visible = false;
   wordToken++;
@@ -742,7 +868,7 @@ function startRecord() {
   recTl = gsap.timeline();
   recTl.call(() => setWord("Tap.", { flash: false }), null, 0.2);
   taps.forEach((t, i) => recTl.call(() => doTap(points[i][0], points[i][1], { loop: false }), null, t));
-  // Gürtel endet bei 4,6 + 0,24 + 6,2 ≈ 11,04 s, Credit blendet davor weich ein
+  // Gürtel endet bei 4,6 + 0,22 + 6,2 ≈ 11,02 s, Credit blendet davor weich ein
   recTl
     .fromTo(creditEl, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.8, ease: "power4.out" }, 10.4)
     .to({}, { duration: 0 }, 12);
@@ -816,6 +942,8 @@ renderer.setAnimationLoop(() => {
   camPos.y += (Math.sin(t * 47.3 + 1.3) + Math.sin(t * 27.9) * 0.5) * s;
   camera.position.copy(camPos);
   camera.lookAt(camTarget);
+  camera.fov = FOV - state.kick * 2.4;
+  camera.updateProjectionMatrix();
 
   renderer.render(scene, camera);
 });
