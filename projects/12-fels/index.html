@@ -163,7 +163,7 @@
       #card .levels { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
       #card .levels[hidden] { display: none; }
       #card .levels button {
-        width: min(280px, 42vw); padding: 22px 18px; border-radius: 28px; background: var(--white);
+        width: min(240px, 30vw); padding: 22px 14px; border-radius: 28px; background: var(--white);
         box-shadow: 0 6px 0 #e7d3bd; text-align: center; color: var(--ink);
       }
       #card .levels button b { display: block; font-size: clamp(22px, 4vw, 30px); color: var(--red); }
@@ -224,6 +224,7 @@
       <div class="levels" hidden>
         <button data-level="1"><b>Level 1</b><span>Steh wie ein Fels</span></button>
         <button data-level="2"><b>Level 2</b><span>Die schwache Seite</span></button>
+        <button data-level="3"><b>Level 3</b><span>Der richtige Moment</span></button>
       </div>
       <button class="btn main"></button><button class="btn alt" hidden></button>
     </div></div>
@@ -236,6 +237,10 @@
          Level 1: „Tief und breit = stark. Hoch und schmal = du fällst um.“
          Level 2: „Schubs da, wo die Füße schmal stehen.“ (Rollentausch: Bo finden lassen,
                   wo er am leichtesten kippt – die schmale Seite seiner Basis.)
+         Level 3: „Schubs, wenn er schon wackelt.“ (Bo wackelt vor und zurück. Sein
+                  Oberkörper verlagert den Schwerpunkt um c, die Kante in diese
+                  Richtung rückt näher: b = bz − sgn·c. Ein leichter Schubs reicht
+                  nur, wenn er schon von dir weg wackelt.)
 
          Physik: Die Figur ist ein starrer Körper, der um die Kante seiner Basis
          kippt (Housner-Kippblock). Pro Achse (links/rechts = x, vorne/hinten = z):
@@ -483,6 +488,9 @@
         pending: null, // laufender Schubs, wartet auf „steht“ oder „fällt“
       };
 
+      // Level 3: Bo verlagert seinen Oberkörper vor/zurück (lokal z)
+      const lean = { z: 0, phase: 0, period: 2.4, on: false, cue: true };
+
       // Winkel, bei dem Bauch/Kopf den Boden berühren (damit sie schön liegt)
       function lieAngle(b, alpha, rBody) {
         const yT = pose.hipY + 0.42, yH = pose.hipY + 1.2;
@@ -493,13 +501,17 @@
         return Math.PI / 2;
       }
 
-      function stepAxis(ax, b, h, dt) {
+      // c: Lehne des Oberkörpers (Level 3) – macht die Kante auf seiner Lehn-Seite schmaler
+      // catchDir: Richtung, in die er sich immer fängt (Level 3: nie nach vorne auf dich zu)
+      function stepAxis(ax, b0, h, dt, c = 0, catchDir = 0) {
         if (ax.phi === 0 && ax.w === 0) return;
+        const sgn = Math.sign(ax.phi || ax.w);
+        const b = Math.max(0.02, b0 - sgn * c);
         const R = Math.hypot(b, h), alpha = Math.atan2(b, h);
         const p2 = (3 * G) / (4 * R);
-        const sgn = Math.sign(ax.phi || ax.w);
         ax.w += -p2 * Math.sin(alpha * sgn - ax.phi) * dt;
         ax.w *= 1 - 0.8 * dt; // etwas Luft-/Muskeldämpfung
+        if (catchDir && sgn === catchDir) ax.w *= 1 - 6 * dt; // Fang-Reflex
         const next = ax.phi + ax.w * dt;
         // Aufprall auf die andere Fußkante: Energie geht verloren (Housner)
         if (ax.phi !== 0 && Math.sign(next) !== Math.sign(ax.phi)) {
@@ -520,7 +532,7 @@
         const n = Math.ceil(dt / (1 / 300));
         for (let i = 0; i < n && !phys.fallen; i++) {
           stepAxis(phys.x, bx, h, dt / n);
-          stepAxis(phys.z, bz, h, dt / n);
+          stepAxis(phys.z, bz, h, dt / n, lean.z, level === 3 ? 1 : 0);
         }
       }
 
@@ -530,7 +542,8 @@
         const len = Math.hypot(dirX, dirZ) || 1;
         const k = PUSH * strength;
         phys.x.w += (dirX / len) * k * h / (bx * bx + h * h);
-        phys.z.w += (dirZ / len) * zPush * k * h / (bz * bz + h * h);
+        const bzEff = Math.max(0.02, bz - Math.sign(dirZ) * lean.z); // Lehne zählt mit
+        phys.z.w += (dirZ / len) * zPush * k * h / (bzEff * bzEff + h * h);
         squash.vel += 2.2 * strength;
         for (const a of arms) a.vel -= (dirX / len) * 6 * strength;
         sfx.boing(strength);
@@ -645,12 +658,12 @@
       scene.add(groundRing);
 
       const comWorld = new THREE.Vector3();
-      const colOk = new THREE.Color(COLORS.ok), colOut = new THREE.Color(COLORS.out);
+      const colOk = new THREE.Color(COLORS.ok), colOut = new THREE.Color(COLORS.out), colWarn = new THREE.Color(0xffc21a);
       let inside = true;
 
       function updateIndicator(time) {
         const { bx, bz, h } = geo();
-        comWorld.set(0, h, 0).applyMatrix4(figure.matrix);
+        comWorld.set(0, h, lean.z).applyMatrix4(figure.matrix);
         comGroup.position.copy(comWorld);
         const pulse = 1 + Math.sin(time * 5) * 0.08;
         comBall.scale.setScalar(pulse * (explainFocus ? 1.4 : 1));
@@ -659,7 +672,7 @@
         const cy = Math.cos(pose.yaw), sy = Math.sin(pose.yaw);
         const lx = comWorld.x * cy - comWorld.z * sy, lz = comWorld.x * sy + comWorld.z * cy;
         inside = Math.abs(lx) <= bx + 1e-4 && Math.abs(lz) <= bz + 1e-4;
-        const col = inside ? colOk : colOut;
+        const col = !inside ? colOut : level === 3 && lean.cue && inWindow() ? colWarn : colOk;
         dotMat.color.copy(col);
         groundRing.material.color.copy(col);
         baseMat.color.lerp(col, 0.35);
@@ -879,6 +892,7 @@
         const dt = Math.max(16, performance.now() - down.t);
         const dist = Math.hypot(dx, dy);
         down = null;
+        if (level === 3) { if (allowPush && !phys.fallen && !phys.frozen) { ripple(e.clientX, e.clientY); l3Tap(); } return; }
         if (level !== 1 || !allowPush || phys.fallen || phys.frozen) return;
         let p;
         if (dist > 30) {
@@ -915,7 +929,7 @@
       // Hand-Hinweis „hier antippen“ – ohne Maus nach 3 Sek. sichtbar
       let handTween = null;
       function showHand() {
-        if (level !== 1 || !allowPush) return; // Timer aus Level 1 kann nach einem Levelwechsel noch feuern
+        if (level === 2 || !allowPush) return; // Timer kann nach einem Levelwechsel noch feuern
         hand.dataset.on = "1";
         gsap.to(hand, { opacity: 1, duration: 0.3 });
         handTween = gsap.to(hand, { y: -18, duration: 0.5, yoyo: true, repeat: -1, ease: "sine.inOut" });
@@ -958,7 +972,7 @@
           resetScene();
           showCard({
             seal: true, title: "Der Fels", text: "Welches Level spielst du?",
-            levels: (n) => (n === 1 ? flow.level1() : flow.level2()),
+            levels: (n) => [flow.level1, flow.level2, flow.level3][n - 1](),
           });
         },
 
@@ -1156,8 +1170,91 @@
             seal: true, sealIcon: "🎯",
             title: "Schubs da, wo die Füße schmal stehen.",
             text: "Zeig deinem Trainer, wo dein Partner schwach steht!",
+            button: "Level 3!",
+            onClick: flow.level3,
+            button2: "Level wählen",
+            onClick2: flow.start,
+          });
+        },
+
+        // ===== LEVEL 3: Der richtige Moment =====
+        level3() {
+          resetScene();
+          setLevel(3);
+          showCard({
+            seal: true, sealIcon: "⏱️", title: "Level 3", text: "Wann fällt Bo ganz leicht um?", button: "Los!",
+            onClick: () => flow.roundL3(0),
+          });
+        },
+
+        // Runde: Bo wackelt, das Kind tippt im richtigen Moment
+        roundL3(r) {
+          const cfg = [{ period: 2.4, cue: true }, { period: 1.6, cue: true }, { period: 2.2, cue: false }][r];
+          Object.assign(lean, { period: cfg.period, cue: cfg.cue, on: true });
+          setStars(0);
+          gsap.to("#stars", { opacity: r > 0 ? 1 : 0, duration: 0.3 });
+          say(["Bo wackelt. Tipp, wenn die Linie gelb ist!", "Schneller! Wieder auf Gelb warten.", "Jetzt ohne Gelb – schau, wie er wackelt!"][r]);
+          allowPush = true;
+          setTimeout(showHand, 1500);
+          let tries = 0;
+          onL3Tap = () => tries++;
+          onStand = () => {
+            say(tries % 2 ? "Zu früh! Warte, bis er von dir weg wackelt." : "Noch nicht! Er muss schon wackeln.");
+          };
+          onFall = async () => {
+            allowPush = false;
+            const stars = tries <= 1 ? 3 : tries <= 3 ? 2 : 1;
+            if (r > 0) { setStars(stars); starEls.forEach((_, k) => k < stars && gsap.fromTo(starEls[k], { scale: 0.3 }, { scale: 1, duration: 0.5, delay: k * 0.12, ease: "back.out(3)" })); }
+            sfx.ding();
+            say(tries === 1 ? "Bumm! Genau im richtigen Moment!" : "Bumm! Erwischt!");
+            await wait(1500);
+            if (r === 0) {
+              showCard({ title: "Warum ging es da so leicht?", button: "Zeig's mir", onClick: flow.explainL3 });
+            } else if (r < 2) {
+              await standUp();
+              flow.roundL3(r + 1);
+            } else {
+              gsap.to("#stars", { opacity: 0, duration: 0.3 });
+              lean.on = false;
+              flow.endL3();
+            }
+          };
+        },
+
+        // Zeitlupe: Bo wackelt, beim selben Moment kommt der Schubs von selbst
+        async explainL3() {
+          lean.phase = lastL3Phase - 3.0;
+          lean.z = LEAN_A * Math.sin(lean.phase);
+          await standUp();
+          Object.assign(lean, { on: true, cue: true });
+          say("Schau auf die Kugel!");
+          explainFocus = true;
+          gsap.to(tagCom, { opacity: 1, duration: 0.3 });
+          slowMo(true);
+          autoPushAt = lastL3Phase;
+          until(() => autoPushAt === null).then(() => setTimeout(() => slowMo(false), 1500)); // nur der Schubs in Zeitlupe
+          onStand = null;
+          onFall = async () => {
+            slowMo(false);
+            lean.on = false;
+            say("Er war schon fast über der Kante – da reicht ein kleiner Schubs!");
+            await wait(900);
+            showAction("Weiter", async () => {
+              explainFocus = false;
+              gsap.to(tagCom, { opacity: 0, duration: 0.3 });
+              await standUp();
+              flow.roundL3(1);
+            });
+          };
+        },
+
+        endL3() {
+          showCard({
+            seal: true, sealIcon: "⏱️",
+            title: "Schubs, wenn er schon wackelt.",
+            text: "Spür beim Training, wann dein Partner wackelt – dann ist er ganz leicht!",
             button: "Nochmal",
-            onClick: flow.level2,
+            onClick: flow.level3,
             button2: "Level wählen",
             onClick2: flow.start,
           });
@@ -1180,6 +1277,7 @@
         },
       };
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const until = (f) => new Promise((r) => { const id = setInterval(() => f() && (clearInterval(id), r()), 50); });
 
       // ---------- Animationsschleife ----------
       const clock = new THREE.Clock();
@@ -1192,6 +1290,7 @@
         pose.w += (pose.wTarget - pose.w) * k;
         pose.t += (pose.tTarget - pose.t) * k;
         applyPose();
+        stepSway(dt * phys.timeScale);
 
         stepPhysics(dt * phys.timeScale);
         stepSquash(dt * Math.max(phys.timeScale, 0.35));
@@ -1249,11 +1348,14 @@
       function setLevel(n) {
         level = n;
         zPush = n === 1 ? Z_PUSH : 1;
+        lean.on = false;
+        lean.z = 0;
         // Level 2: Bo ist ein anderer Gegner – orange Kappe, grüner Gürtel, feste Haltung
         mHead.color.set(n === 1 ? COLORS.head : 0xff8a3d);
         mBelt.color.set(n === 1 ? COLORS.belt : 0x2bb673);
-        gsap.to(view, n === 1 ? { up: 0.42, back: 1, look: 1.3, duration: 0.8 } : { up: 0.98, back: 0.7, look: 1.15, duration: 0.8 });
-        if (n === 2) setPose(1.0, 0.5, true);
+        gsap.to(view, n === 2 ? { up: 0.98, back: 0.7, look: 1.15, duration: 0.8 } : { up: 0.42, back: 1, look: 1.3, duration: 0.8 });
+        if (n >= 2) setPose(1.0, 0.5, true);
+        if (n === 3) pose.yaw = -Math.PI / 2; // Bo schaut zu dir (nach links), wackelt also links ↔ rechts
       }
       function resetScene() {
         allowPush = false;
@@ -1267,6 +1369,9 @@
         dizzy.visible = false;
         eyes.forEach((e) => e.scale.set(1, 1, 1));
         pose.yaw = 0;
+        lean.on = false;
+        lean.z = 0;
+        autoPushAt = null;
         hideAction();
         hideHand();
         showSliders(false);
@@ -1315,6 +1420,35 @@
         return new Promise((r) => gsap.to(pose, { yaw, duration: 0.8, ease: "back.inOut(1.6)", onComplete: () => { squash.vel += 2.5; r(); } }));
       }
 
+      // ---------- Level 3: Wackeln ----------
+      const LEAN_A = 0.2;     // wie weit Bo hin und her wackelt (Basis-Halbe vorne/hinten: 0.27)
+      const LIGHT3 = 0.3;     // leichter Schubs: wirft ihn nur, wenn er schon weg von dir wackelt
+      const WIN_C = -0.08;    // ab dieser Lehne (weg von dir) reicht der leichte Schubs
+      let lastL3Phase = 0, autoPushAt = null, onL3Tap = null;
+      function stepSway(dt) {
+        // Er wackelt nur, solange er ruhig steht – nach einem Schubs zählt die Lehne im Moment des Schubses
+        if (lean.on && !phys.fallen && !phys.frozen && phys.z.phi === 0 && phys.z.w === 0 && !phys.pending) {
+          lean.phase += (dt * Math.PI * 2) / lean.period;
+          lean.z = LEAN_A * Math.sin(lean.phase);
+        }
+        upper.position.z = lean.z * 0.8;
+        upper.rotation.x = lean.z * 0.7;
+        if (autoPushAt !== null && lean.phase >= autoPushAt) { autoPushAt = null; l3Push(); }
+      }
+      const inWindow = () => lean.z <= WIN_C;
+      // Schubs von links (von dir weg): in Bos Körper ist das „nach hinten“
+      function l3Push() {
+        lastL3Phase = lean.phase;
+        pushWorld(1, 0, LIGHT3);
+        phys.pending = { strength: LIGHT3 };
+      }
+      function l3Tap() {
+        if (phys.pending) return;
+        hideHand();
+        onL3Tap?.();
+        l3Push();
+      }
+
       setPose(0.34, 1, true);
       sWidth.set(0.03);
       sHip.set(1);
@@ -1322,7 +1456,7 @@
       flow.start();
 
       // Zum Testen in der Konsole
-      window.fels = { phys, pose, push, pushWorld, flow, geo, arrowPush, setLevel };
+      window.fels = { phys, pose, push, pushWorld, flow, geo, arrowPush, setLevel, lean, l3Push };
     </script>
   </body>
 </html>
